@@ -124,24 +124,17 @@ contract Auction is Solirey {
         safeTransferFrom(address(this), _auctionInfo[id].highestBidder, _auctionInfo[id].tokenId);
     }
     
-    // function onERC721Received(address, address _from, uint256 _tokenId, bytes calldata) external override returns(bytes4) {
-    //     require(beneficiary == _from, "Only the beneficiary can transfer the token into the auction.");
-    //     require(tokenAdded == false, "The auction already has a token.");
-        
-    //     nftContract = ERC721(msg.sender);
-    //     tokenId = _tokenId;
-    //     tokenAdded = true;
+ 
+    // for testing only 
+    function getAdmin() public view returns (address) {
+        return admin;
+    }
 
-    //     return 0x150b7a02;
-    // }
-    
-    // function onERC721Received(address, address _from, uint256 _tokenId, bytes memory) public virtual override returns (bytes4) {
-    //     require(beneficiary == _from, "Only the beneficiary can transfer the token into the auction.");
-    //     require(tokenAdded == false, "The auction already has a token.");
-        
-    //     nftContract = ERC721(msg.sender);
-    //     tokenId = _tokenId;
-    //     tokenAdded = true;
-    //     return this.onERC721Received.selector;
-    // }
+    function getAuctionInfo(string memory id) public view returns (address beneficiary, uint auctionEndTime, uint startingBid, uint256 tokenId, address highestBidder, uint highestBid, bool ended) {
+        return (_auctionInfo[id].beneficiary, _auctionInfo[id].auctionEndTime, _auctionInfo[id].startingBid, _auctionInfo[id].tokenId, _auctionInfo[id].highestBidder, _auctionInfo[id].highestBid, _auctionInfo[id].ended);
+    }
+
+    function getPendingReturn(string memory id, address bidder) public view returns (uint) {
+        return _auctionInfo[id].pendingReturns[bidder];
+    }
 }
