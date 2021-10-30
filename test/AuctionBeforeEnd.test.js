@@ -3,7 +3,7 @@ const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
 contract("Auction before the end time", (accounts) => {
-    let contract, admin, initialSeller, initialId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid;
+    let contract, admin, initialSeller, prelimId, initialId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid;
     before(async () => {
         admin = accounts[0];
         firstBuyer = accounts[1];
@@ -11,6 +11,7 @@ contract("Auction before the end time", (accounts) => {
         contract = await auction.deployed({ from: admin });
 
         initialSeller = accounts[3];
+        prelimId = "prelimId"
         initialId = "id"
         initialBiddingTime = 100
         initialStartingBid = 100
@@ -21,10 +22,12 @@ contract("Auction before the end time", (accounts) => {
 
     it("Successfully deployed", async () => {
         const retrievedAdmin = await contract.getAdmin.call();
+
         assert.equal(retrievedAdmin, admin, "The admin is incorrect.");
     });
 
     it("Create an auction", async () => {
+        // Successfully create an auction which is to be aborted later.
         let result;
         try {
             // Calculate auction end time at the same time as the auction creat time
@@ -32,12 +35,24 @@ contract("Auction before the end time", (accounts) => {
             const timeObject = new Date(); 
             initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
 
-            result = await contract.createAuction(initialId, initialBiddingTime, initialStartingBid, { from: initialSeller });
+            result = await contract.createAuction(prelimId, initialBiddingTime, initialStartingBid, { from: initialSeller });
         } catch (error) {
             console.log("error", error)
         }
 
-        const auctionInfo = await contract.getAuctionInfo(initialId);
+        // Unsuccesfully attempt to create an auction under the identical ID
+        try {
+            // Calculate auction end time at the same time as the auction creat time
+            let initialBiddingTimeInMilliSeconds = initialBiddingTime * 1000
+            const timeObject = new Date(); 
+            initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
+
+            result = await contract.createAuction(prelimId, initialBiddingTime, initialStartingBid, { from: initialSeller });
+        } catch (error) {
+            assert.equal(error.reason, "This ID has already been used.", "The attempt to create an auction under the same ID should fail.")
+        }
+
+        const auctionInfo = await contract.getAuctionInfo(prelimId);
         
         const beneficiary = auctionInfo["beneficiary"]
         const auctionEndTime = auctionInfo["auctionEndTime"]
@@ -49,6 +64,9 @@ contract("Auction before the end time", (accounts) => {
         
         const dateObject = new Date(auctionEndTime.toNumber() * 1000);
 
+        // check that the owner of the newly minted token is the current contract
+        const owner = await contract.ownerOf(tokenId);
+
         assert.isTrue(result.receipt.status, "The status for the createAuction method isn't true.");
         assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
         assert.equal(dateObject.toString(), initialAuctionEndTime.toString(), "The initialAuctionEndTime and the auctionEndTime aren't the same.");
@@ -57,9 +75,80 @@ contract("Auction before the end time", (accounts) => {
         assert.equal(highestBidder, 0, "The highestBidder should be default.");
         assert.equal(highestBid, 0, "The highestBid should be at 0.");
         assert.isFalse(ended, "The ended variable should be false by default.");
+        assert.equal(owner, contract.address, "The owner of the newly minted token is inaccurate. Should be the current auction contract.")
+    })
+
+    it("Unsuccesfully attempt to resell an item right after listing it on an auction.", async () => {
+        const auctionInfo = await contract._auctionInfo(prelimId);
+        const tokenId = auctionInfo["tokenId"]
+
+        try {
+            await contract.resell("newId", initialBiddingTime, initialStartingBid, tokenId, { from: initialSeller })
+        } catch (error) {
+            // Should fail because the ownership has been transferred to the auction contract when a new auction was created.
+            assert.equal(error.reason, "Not authorized.")
+        }
+    })
+
+    it("Get the proper auction info using the public variable _auctionInfo", async () => {
+        const auctionInfo = await contract._auctionInfo(prelimId);
+
+        const beneficiary = auctionInfo["beneficiary"]
+        const auctionEndTime = auctionInfo["auctionEndTime"]
+        const startingBid = auctionInfo["startingBid"]
+        const tokenId = auctionInfo["tokenId"]
+        const highestBidder = auctionInfo["highestBidder"]
+        const highestBid = auctionInfo["highestBid"]
+        const ended = auctionInfo["ended"]
+        const transferred = auctionInfo["transferred"]
+
+        const dateObject = new Date(auctionEndTime.toNumber() * 1000);
+        assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
+        assert.equal(dateObject.toString(), initialAuctionEndTime.toString(), "The initialAuctionEndTime and the auctionEndTime aren't the same.");
+        assert.equal(startingBid, initialStartingBid, "The initialStartingBid and the startingBid aren't the same.");
+        assert.equal(tokenId.toNumber(), 1, "Wrong token ID number");
+        assert.equal(highestBidder, 0, "The highestBidder should be default.");
+        assert.equal(highestBid, 0, "The highestBid should be at 0.");
+        assert.isFalse(ended, "The ended variable should be false by default.");
+        assert.isFalse(transferred, "The transferred variable should be false by default.");
+    })
+
+    it("Successfully abort the auction", async () => {
+        try {
+            await contract.abort(prelimId, { from: firstBuyer })
+        } catch (error) {
+            assert.equal(error.reason, "Not authorized.");
+        }
+
+        let result;
+        try {
+            result = await contract.abort(prelimId, { from: initialSeller })
+        } catch (error) {
+            console.log(error)
+        }
+
+        const auctionInfo = await contract._auctionInfo(prelimId)
+        const tokenId = auctionInfo["tokenId"]
+        const owner = await contract.ownerOf(tokenId)
+        const ended = auctionInfo["ended"]
+
+        assert.isTrue(result.receipt.status, "The status of the transaction should be true.");
+        assert.equal(owner, initialSeller, "The owner of the token ID 1 minted from prelimId should be the initialSeller.")
+        assert.isTrue(ended, "The ended variable should say true.")
     })
 
     it("Bid", async () => {
+        try {
+            // Calculate auction end time at the same time as the auction creat time
+            let initialBiddingTimeInMilliSeconds = initialBiddingTime * 1000
+            const timeObject = new Date(); 
+            initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
+
+            await contract.createAuction(initialId, initialBiddingTime, initialStartingBid, { from: initialSeller });
+        } catch (error) {
+            console.log("error", error)
+        }
+
         // underbid than the minimum bid
         try {
             await contract.bid(initialId, { from: firstBuyer, value: 50 });
@@ -67,11 +156,11 @@ contract("Auction before the end time", (accounts) => {
             assert.equal(error.reason, "The bid has to be higher than the specified starting bid.", "The underbid should fail.");
         }
 
-        // bid on your own auction
+        // bid on an aborted auction
         try {
-            await contract.bid(initialId, { from: initialSeller, value: 150 });
+            await contract.bid(prelimId, { from: firstBuyer, value: 50 });
         } catch(error) {
-            assert.equal(error.reason, "You cannot bid on your own auction.", "The underbid should fail.");
+            assert.equal(error.reason, "Auction already ended.");
         }
 
         // bid on an uninitiated ID
@@ -108,10 +197,18 @@ contract("Auction before the end time", (accounts) => {
         assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
         assert.equal(dateObject.toString(), initialAuctionEndTime.toString(), "The initialAuctionEndTime and the auctionEndTime aren't the same.");
         assert.equal(startingBid, initialStartingBid, "The initialStartingBid and the startingBid aren't the same.");
-        assert.equal(tokenId.toNumber(), 1, "Wrong token ID number");
+        assert.equal(tokenId.toNumber(), 2, "Wrong token ID number");
         assert.equal(highestBidder, firstBuyer, "The highestBidder should be default.");
         assert.equal(highestBid, initialBid, "The highestBid should be at 0.");
         assert.isFalse(ended, "The ended variable should be false by default.");
+    })
+
+    it("Unsuccesfully abort the auction", async () => {
+        try {
+            await contract.abort(initialId, { from: initialSeller })
+        } catch (error) {
+            assert.equal(error.reason, "Cannot abort.");
+        }
     })
 
     it("Withdraws the proper outbid amount", async () => {
@@ -171,7 +268,7 @@ contract("Auction before the end time", (accounts) => {
         assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
         assert.equal(dateObject.toString(), initialAuctionEndTime.toString(), "The initialAuctionEndTime and the auctionEndTime aren't the same.");
         assert.equal(startingBid, initialStartingBid, "The initialStartingBid and the startingBid aren't the same.");
-        assert.equal(tokenId.toNumber(), 1, "Wrong token ID number");
+        assert.equal(tokenId.toNumber(), 2, "Wrong token ID number");
         assert.equal(highestBidder, secondBuyer, "The highestBidder should be default.");
         assert.equal(highestBid, secondBid, "The highestBid should be at 0.");
         assert.isFalse(ended, "The ended variable should be false by default.");
