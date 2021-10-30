@@ -1,8 +1,8 @@
 const auction = artifacts.require("Auction");
 const helper = require("./helpers/truffleTestHelper");
+const { toBN } = web3.utils;
 
-contract("Auction", (accounts) => {
-    const { toBN } = web3.utils;
+contract("Auction before the end time", (accounts) => {
     let contract, admin, initialSeller, initialId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid;
     before(async () => {
         admin = accounts[0];
@@ -19,7 +19,7 @@ contract("Auction", (accounts) => {
         secondBid = toBN(initialBid).add(toBN('100')).toString()
     })
 
-    it("Successfully deployed.", async () => {
+    it("Successfully deployed", async () => {
         const retrievedAdmin = await contract.getAdmin.call();
         assert.equal(retrievedAdmin, admin, "The admin is incorrect.");
     });
@@ -28,7 +28,7 @@ contract("Auction", (accounts) => {
         let result;
         try {
             // Calculate auction end time at the same time as the auction creat time
-            let initialBiddingTimeInMilliSeconds = 100 * 1000
+            let initialBiddingTimeInMilliSeconds = initialBiddingTime * 1000
             const timeObject = new Date(); 
             initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
 
@@ -114,7 +114,7 @@ contract("Auction", (accounts) => {
         assert.isFalse(ended, "The ended variable should be false by default.");
     })
 
-    it("Withdraws the proper outbid amount.", async () => {
+    it("Withdraws the proper outbid amount", async () => {
         // underbid the current highest bid
         try {
             await contract.bid(initialId, { from: secondBuyer, value: 50 });
@@ -177,19 +177,17 @@ contract("Auction", (accounts) => {
         assert.isFalse(ended, "The ended variable should be false by default.");
     })
 
-    it("Bidding fails due to the auction end date.", async () => {
-        const advancement = 600;
-        const newBlock = await helper.advanceTimeAndBlock(advancement);
-        const originalBlock = web3.eth.getBlock('latest');
-        const timeDiff = newBlock.timestamp - originalBlock.timestamp;
-        console.log("time diff", timeDiff)
-
-        // bid after the auction end time 
-        const thirdBid = secondBid.add(toBN(100));
+    it("Fail to end the auction before the end time", async () => {
         try {
-            await contract.bid(initialId, { from: firstBuyer, value: thirdBid });
+            await contract.auctionEnd(initialId)
+        } catch (error) {
+            assert.equal(error.reason, "Auction has not yet ended.")
+        }
+
+        try {
+            await contract.getTheHighestBid(initialId, { from: initialSeller })
         } catch(error) {
-            console.log(error)
+            assert.equal(error.reason, "Auction bidding time has not expired.")
         }
     })
 })

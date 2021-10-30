@@ -75,9 +75,9 @@ contract Auction is Solirey {
         if (_auctionInfo[id].highestBid != 0) {
             _auctionInfo[id].pendingReturns[_auctionInfo[id].highestBidder] += _auctionInfo[id].highestBid;
         }
-        
-        _auctionInfo[id].highestBidder = msg.sender;
+
         _auctionInfo[id].highestBid = msg.value;
+        _auctionInfo[id].highestBidder = msg.sender;
         emit HighestBidIncreased(id, msg.sender, msg.value);
     }
 
