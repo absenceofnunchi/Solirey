@@ -2,6 +2,7 @@ const solirey = artifacts.require("Solirey");
 const mintContract = artifacts.require("MintContract");
 const simplePayment = artifacts.require("SimplePayment");
 const auction = artifacts.require("Auction");
+const escrow = artifacts.require("Escrow");
 
 module.exports = function(deployer, _, accounts) {
     const admin = accounts[0];
@@ -9,4 +10,5 @@ module.exports = function(deployer, _, accounts) {
     deployer.deploy(mintContract);
     deployer.deploy(simplePayment);
     deployer.deploy(auction);
+    deployer.deploy(escrow, { from: admin });
 }

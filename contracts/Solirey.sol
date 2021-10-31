@@ -8,7 +8,9 @@ contract Solirey is ERC721 {
     using Counters for Counters.Counter;
     Counters.Counter internal _tokenIds;
     address payable internal admin; 
-
+    // The original artist
+    mapping (uint256 => address) public _artist;
+    
     constructor() ERC721("Solirey", "SREY") {
         admin = payable(msg.sender);
     }
