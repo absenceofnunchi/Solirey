@@ -96,6 +96,7 @@ contract("Auction after ended", (accounts) => {
         }
 
         const balanceBefore = await web3.eth.getBalance(initialSeller)
+        const adminBalanceBefore = await web3.eth.getBalance(admin)
         let getResult;
         try {
             getResult = await contract.getTheHighestBid(initialId, { from: initialSeller })
@@ -104,6 +105,7 @@ contract("Auction after ended", (accounts) => {
         }
 
         const balanceAfter = await web3.eth.getBalance(initialSeller)
+        const adminBalanceAfter = await web3.eth.getBalance(admin)
 
         // calculate the total gas cost
         const gasUsed = getResult.receipt.gasUsed;
@@ -112,7 +114,11 @@ contract("Auction after ended", (accounts) => {
         const totalGasCost = gasUsed * gasPrice; 
 
         const diff = toBN(balanceAfter).sub(toBN(balanceBefore))
-        const final = diff.add(toBN(totalGasCost))
+        const diffAndGas = diff.add(toBN(totalGasCost))
+
+        // add back the fee
+        const fee = toBN(initialBid).mul(toBN(2)).div(toBN(100))
+        const final = diffAndGas.add(toBN(fee))
 
         const auctionInfo = await contract._auctionInfo(initialId);
         const beneficiary = auctionInfo["beneficiary"]
@@ -128,6 +134,9 @@ contract("Auction after ended", (accounts) => {
         // Since no one has been outbid, there shouldn't be any pending return.
         const pendingReturn = await contract.getPendingReturn(initialId, firstBuyer);
 
+        // check the balance of the admin to confirm the new deposit
+        const adminDiff = toBN(adminBalanceAfter).sub(toBN(adminBalanceBefore))
+
         assert.isTrue(getResult.receipt.status, "The status for the getTheHighestBid method has to be true.");
         assert.equal(pendingReturn.toString(), "0", "The pending return should be 0.");
         assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
@@ -140,6 +149,7 @@ contract("Auction after ended", (accounts) => {
         assert.isTrue(transferred, "The transferred variable should be false by default.");
         assert.equal(final.toString(), initialBid.toString(), "The amount collected by the seller is different from the amount paid by the buyer.")
         assert.equal(final.toString(), highestBid.toString(), "The amount collected by the seller has to be same as the highest bid.")
+        assert.equal(adminDiff.toString(), fee.toString(), "The increased balance of the admin's account should match the newly deposited fee.")
     })
 
     it("Successfully resell", async () => {

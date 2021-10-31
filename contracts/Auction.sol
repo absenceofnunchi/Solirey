@@ -171,7 +171,12 @@ contract Auction is Solirey {
         require(_auctionInfo[id].transferred == false, "Already transferred");
         
         _auctionInfo[id].transferred = true;
-        _auctionInfo[id].beneficiary.transfer(_auctionInfo[id].highestBid);
+
+        uint fee = _auctionInfo[id].highestBid * 2 / 100;
+        uint payment = _auctionInfo[id].highestBid - fee;
+        
+        admin.transfer(fee);
+        _auctionInfo[id].beneficiary.transfer(payment);
     }
  
     // for testing only 
