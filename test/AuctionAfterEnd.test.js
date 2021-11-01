@@ -11,7 +11,6 @@ contract("Auction after ended", (accounts) => {
         contract = await auction.deployed({ from: admin });
 
         initialSeller = accounts[3];
-        initialId = "id"
         newId = "newId"
         initialBiddingTime = 100
         initialStartingBid = 100
@@ -19,16 +18,19 @@ contract("Auction after ended", (accounts) => {
     })
 
     it("Bidding fails due to the auction end date", async () => {
+        let result;
         try {
             // Calculate auction end time at the same time as the auction creat time
             let initialBiddingTimeInMilliSeconds = initialBiddingTime * 1000
             const timeObject = new Date(); 
             initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
 
-            await contract.createAuction(initialId, initialBiddingTime, initialStartingBid, { from: initialSeller });
+            result = await contract.createAuction(initialBiddingTime, initialStartingBid, { from: initialSeller });
         } catch (error) {
             console.log("error", error)
         }
+
+        initialId = result.logs[0].args["id"]
 
         // bid before the auction end time 
         try {
@@ -41,7 +43,7 @@ contract("Auction after ended", (accounts) => {
         try {
             await contract.getTheHighestBid(initialId, { from: initialSeller })
         } catch(error) {
-            assert.equal(error.reason, "Auction bidding time has not expired.")
+            assert.equal(error.reason, "Auction bidding time has not expired")
         }
 
         const advancement = 600;
@@ -51,7 +53,7 @@ contract("Auction after ended", (accounts) => {
         try {
             await contract.bid(initialId, { from: firstBuyer, value: initialBid });
         } catch(error) {
-            assert.equal(error.reason, "Auction already ended.")
+            assert.equal(error.reason, "Auction already ended")
         }
     })  
 
@@ -59,7 +61,7 @@ contract("Auction after ended", (accounts) => {
         try {
             await contract.abort(initialId, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Cannot abort.");
+            assert.equal(error.reason, "Cannot abort");
         }
     })
 
@@ -76,7 +78,7 @@ contract("Auction after ended", (accounts) => {
         try {
             await contract.auctionEnd(initialId)
         } catch (error) {
-            assert.equal(error.reason, "auctionEnd has already been called.")
+            assert.equal(error.reason, "auctionEnd has already been called")
         }
 
         const auctionInfo = await contract._auctionInfo(initialId);
@@ -158,26 +160,21 @@ contract("Auction after ended", (accounts) => {
 
         // Unsuccessfully attempt to resell by an unauthorized account
         try {
-            await contract.resell("newId", initialBiddingTime, initialStartingBid, tokenId, { from: initialSeller })
+            await contract.resell(initialBiddingTime, initialStartingBid, tokenId, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized.")
+            assert.equal(error.reason, "Not authorized")
         }
 
-        // Unsuccessfully attempt to resell by using the same ID used before
-        try {
-            await contract.resell(initialId, initialBiddingTime, initialStartingBid, tokenId, { from: firstBuyer })
-        } catch (error) {
-            assert.equal(error.reason, "This ID has already been used.")
-        }
-
+        let resellResult;
         // Successfully resell
         try {
-            await contract.resell(newId, initialBiddingTime, initialStartingBid, tokenId, { from: firstBuyer })
+            resellResult = await contract.resell(initialBiddingTime, initialStartingBid, tokenId, { from: firstBuyer })
         } catch (error) {
             console.log(error)
         }
+        initialId = resellResult.logs[0].args["id"]
 
-        const newAuctionInfo = await contract._auctionInfo(newId)
+        const newAuctionInfo = await contract._auctionInfo(initialId)
         const beneficiary = newAuctionInfo["beneficiary"]
         const startingBid = newAuctionInfo["startingBid"]
         const newTokenId = newAuctionInfo["tokenId"]

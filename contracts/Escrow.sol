@@ -16,7 +16,6 @@ contract Escrow is Solirey {
     enum State { Created, Locked, Inactive }
     using Counters for Counters.Counter;
     mapping (uint => EscrowInfo) public _escrowInfo;
-    uint uid;
 
     event PurchaseConfirmed(uint id);
     event ItemReceived(uint id);
@@ -47,13 +46,17 @@ contract Escrow is Solirey {
         return uid;
     }
     
-    function resell(uint256 tokenId) public payable {
+    function resell(uint256 tokenId) public payable returns (uint) {
+        require(ownerOf(tokenId) == msg.sender, "Unauthorized");
+
         uid++;
         
         _escrowInfo[uid].value = msg.value / 2;
         require((2 * _escrowInfo[uid].value) == msg.value, "Value has to be even");
         _escrowInfo[uid].seller = payable(msg.sender);
         _escrowInfo[uid].tokenId = tokenId;
+
+        return uid;
     }
     
     function abort(uint id) public inState(State.Created, id) {

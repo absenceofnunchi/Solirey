@@ -10,7 +10,8 @@ contract Solirey is ERC721 {
     address payable internal admin; 
     // The original artist
     mapping (uint256 => address) public _artist;
-    
+    uint uid;
+
     constructor() ERC721("Solirey", "SREY") {
         admin = payable(msg.sender);
     }

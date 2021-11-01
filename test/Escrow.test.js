@@ -239,6 +239,68 @@ contract("Escrow", (accounts) => {
         }
     })
 
+    it("Resell", async () => {
+        // Unauthorized reselling
+        try {
+            await contract.resell(tokenId, { from: initialSeller, value: initialValue })
+        } catch (error) {
+            assert.equal(error.reason, "Unauthorized")
+        } 
+
+        try {
+            await contract.resell(tokenId, { from: initialBuyer, value: web3.utils.toWei("1", "ether") })
+        } catch (error) {
+            assert.equal(error.reason, "Value has to be even")
+        } 
+
+        let result;
+        try {
+            result = await contract.resell(tokenId, { from: initialBuyer, value: initialValue })
+        } catch (error) {
+            assert.equal(error.reason, "Unauthorized")
+        } 
+
+        id = result.toString()
+        const escrowInfo = await getEscrowInfo("4")
+        const value = escrowInfo["value"]
+        const seller = escrowInfo["seller"]
+        const storedTokenId = escrowInfo["tokenId"]
+
+        assert.equal(value.toString(), toBN(initialValue).div(toBN(2)), "Incorrect value in EscrowInfo")
+        assert.equal(seller.toString(), initialBuyer.toString(), "Incorrect seller")
+        assert.equal(storedTokenId.toString(), tokenId.toString(), "Wrong token ID")
+    })
+
+    it("Abort the resell", async () => {
+        try {
+            await contract.abort("4", { from: initialSeller })
+        } catch (error) {
+            assert.equal(error.reason, "Unauthorized")
+        }
+
+        const balanceBefore = await web3.eth.getBalance(initialBuyer)
+        let result;
+        try {
+            result = await contract.abort("4", { from: initialBuyer })
+        } catch (error) {
+            console.log(error)
+        }
+        const balanceAfter = await web3.eth.getBalance(initialBuyer)
+
+        const diff = toBN(balanceAfter).sub(toBN(balanceBefore))
+        const totalGasCost = await getTotalGasCost(result)
+        const finalValue = toBN(diff).add(toBN(totalGasCost))
+
+        const escrowInfo = await getEscrowInfo("4");
+        const value = escrowInfo["value"]
+        const state = escrowInfo["state"]
+
+        // assert.isTrue(result.receipt.status, "The abort transaction should be successful.")
+        assert.equal(state.toString(), 2, "The state should be inactive.")
+        assert.equal(finalValue.toString(), initialValue, "The retrieved value after aborting should equal the initial value.")
+        assert.equal(value * 2, initialValue, "The value stored in the escrow info should be half the initial value.")
+    })
+
     getEscrowInfo = async (id) => {
         const escrowInfo = await contract._escrowInfo(id);
         return escrowInfo
