@@ -1,8 +1,7 @@
 const auction = artifacts.require("Auction");
-const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
-contract("Auction before the end time", (accounts) => {
+contract("During Auction", (accounts) => {
     let contract, admin, initialSeller, initialId, secondId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid, initialTokenId;
     before(async () => {
         admin = accounts[0];

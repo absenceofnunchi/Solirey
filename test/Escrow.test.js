@@ -1,4 +1,5 @@
 const escrow = artifacts.require("Escrow");
+const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
 contract("Escrow", (accounts) => {
@@ -68,7 +69,7 @@ contract("Escrow", (accounts) => {
         const balanceAfter = await web3.eth.getBalance(initialSeller)
 
         const diff = toBN(balanceAfter).sub(toBN(balanceBefore))
-        const totalGasCost = await getTotalGasCost(result)
+        const totalGasCost = await helper.getTotalGasCost(result)
         const finalValue = toBN(diff).add(toBN(totalGasCost))
 
         const escrowInfo = await getEscrowInfo(id);
@@ -139,7 +140,7 @@ contract("Escrow", (accounts) => {
         const newState = escrowInfo2["state"]
 
         const diff = toBN(balanceBefore).sub(toBN(balanceAfter))
-        const totalGasCost = await getTotalGasCost(purchaseResult) 
+        const totalGasCost = await helper.getTotalGasCost(purchaseResult) 
         const finalValue = diff.sub(toBN(totalGasCost))
 
         assert.isTrue(purchaseResult.receipt.status, "The purchase transaction should be true.")
@@ -203,7 +204,7 @@ contract("Escrow", (accounts) => {
         const fee = toBN(initialValue).div(toBN(commissionRate)).mul(toBN(2)).div(toBN(100))
 
         // Calculate the total gas.
-        const totalGasCost = await getTotalGasCost(result)
+        const totalGasCost = await helper.getTotalGasCost(result)
 
         // Calculate the artist fee.
         const artistFee = toBN(value).mul(toBN(commissionRate)).div(toBN(100))
@@ -288,7 +289,7 @@ contract("Escrow", (accounts) => {
         const balanceAfter = await web3.eth.getBalance(initialBuyer)
 
         const diff = toBN(balanceAfter).sub(toBN(balanceBefore))
-        const totalGasCost = await getTotalGasCost(result)
+        const totalGasCost = await helper.getTotalGasCost(result)
         const finalValue = toBN(diff).add(toBN(totalGasCost))
 
         const escrowInfo = await getEscrowInfo("4");
@@ -304,14 +305,5 @@ contract("Escrow", (accounts) => {
     getEscrowInfo = async (id) => {
         const escrowInfo = await contract._escrowInfo(id);
         return escrowInfo
-    }
-
-    getTotalGasCost = async (result) => {
-        // calculate the total gas cost
-        const gasUsed = result.receipt.gasUsed;
-        const tx = await web3.eth.getTransaction(result.tx);
-        const gasPrice = tx.gasPrice;
-        const totalGasCost = toBN(gasUsed).mul(toBN(gasPrice))
-        return totalGasCost
     }
 })

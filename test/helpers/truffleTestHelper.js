@@ -1,3 +1,5 @@
+const { toBN } = web3.utils;
+
 advanceTimeAndBlock = async (time) => {
     await advanceTime(time);
     await advanceBlock();
@@ -34,8 +36,18 @@ advanceBlock = () => {
     });
 }
 
+getTotalGasCost = async (result) => {
+    // calculate the total gas cost
+    const gasUsed = result.receipt.gasUsed;
+    const tx = await web3.eth.getTransaction(result.tx);
+    const gasPrice = tx.gasPrice;
+    const totalGasCost = toBN(gasUsed).mul(toBN(gasPrice))
+    return totalGasCost
+}
+
 module.exports = {
     advanceTime,
     advanceBlock,
-    advanceTimeAndBlock
+    advanceTimeAndBlock,
+    getTotalGasCost
 }

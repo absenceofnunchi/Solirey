@@ -2,7 +2,7 @@ const auction = artifacts.require("Auction");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
-contract("Auction after ended", (accounts) => {
+contract("After Auction", (accounts) => {
     let contract, admin, initialSeller, initialId, newId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, initialBid;
     before(async () => {
         admin = accounts[0];
@@ -18,6 +18,7 @@ contract("Auction after ended", (accounts) => {
     })
 
     it("Bidding fails due to the auction end date", async () => {
+        // Successfully create an auction
         let result;
         try {
             // Calculate auction end time at the same time as the auction creat time
@@ -120,7 +121,7 @@ contract("Auction after ended", (accounts) => {
 
         // add back the fee
         const fee = toBN(initialBid).mul(toBN(2)).div(toBN(100))
-        const final = diffAndGas.add(toBN(fee))
+        const final = diffAndGas.add(toBN(fee)).add(toBN(fee))
 
         const auctionInfo = await contract._auctionInfo(initialId);
         const beneficiary = auctionInfo["beneficiary"]

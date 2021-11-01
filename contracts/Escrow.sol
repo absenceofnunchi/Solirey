@@ -85,10 +85,7 @@ contract Escrow is Solirey {
         uint payment = value * 3 - (fee * 2);
         
         address artist = _artist[_escrowInfo[id].tokenId];
-        
-        if (artist != address(0)) {
-            payable(artist).transfer(fee);    
-        }
+        payable(artist).transfer(fee);    
         
         admin.transfer(fee);
         _escrowInfo[id].seller.transfer(payment);

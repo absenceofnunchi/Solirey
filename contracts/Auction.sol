@@ -32,12 +32,6 @@ contract Auction is Solirey {
     event HighestBidIncreased(uint id, address bidder, uint amount);
     event AuctionEnded(uint id);
 
-    // The following is a so-called natspec comment,
-    // recognizable by the three slashes.
-    // It will be shown when the user is asked to
-    // confirm a transaction.
-
-    /// Create a simple auction with `_biddingTime` and `_startingBid`
     function createAuction(uint _biddingTime, uint _startingBid) public {
         uid++;
 
@@ -51,8 +45,8 @@ contract Auction is Solirey {
         _auctionInfo[uid].tokenId = newTokenId;
         _auctionInfo[uid].beneficiary = payable(msg.sender);
         _auctionInfo[uid].auctionEndTime = block.timestamp + _biddingTime;
-        _auctionInfo[uid].highestBidder = address(0);
-        _auctionInfo[uid].startingBid = _startingBid;        
+        // _auctionInfo[uid].highestBidder = address(0);
+        _auctionInfo[uid].startingBid = _startingBid;                        
     }
     
     function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) public {
@@ -172,8 +166,11 @@ contract Auction is Solirey {
         _auctionInfo[id].transferred = true;
 
         uint fee = _auctionInfo[id].highestBid * 2 / 100;
-        uint payment = _auctionInfo[id].highestBid - fee;
-        
+        uint payment = _auctionInfo[id].highestBid - (fee * 2);
+
+        address artist = _artist[_auctionInfo[id].tokenId];
+        payable(artist).transfer(fee);    
+
         admin.transfer(fee);
         _auctionInfo[id].beneficiary.transfer(payment);
     }
