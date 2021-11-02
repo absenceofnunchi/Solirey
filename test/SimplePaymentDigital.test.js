@@ -2,7 +2,7 @@ const simplePayment = artifacts.require("SimplePaymentDigital");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
-contract("Simple Payment for Digital", (accounts) => {
+contract("Simple Payment #1", (accounts) => {
     let contract, admin, initialBuyer, secondBuyer, initialSeller, initialValue, id, tokenId, commissionRate;
     before(async () => {
         admin = accounts[0];

@@ -2,7 +2,7 @@ const simplePayment = artifacts.require("SimplePaymentTangible");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
-contract("Simple Payment for Tangible", (accounts) => {
+contract("Simple Payment #2", (accounts) => {
     let contract, admin, initialBuyer, initialSeller, initialValue, id, tokenId, commissionRate, secondBuyer;
     before(async () => {
         admin = accounts[0];
