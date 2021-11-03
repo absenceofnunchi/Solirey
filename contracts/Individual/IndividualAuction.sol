@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// pragma solidity >=0.4.22 <0.7.0;
 pragma solidity ^0.8.0;
 
 import "../../node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -15,7 +14,8 @@ contract IndividualAuction is IERC721Receiver {
     ERC721 nftContract;
     uint public startingBid;
     bool tokenAdded;
-    address payable broker;
+    bool isWithdrawn;
+    address payable admin;
 
     // Current state of the auction.
     address public highestBidder;
@@ -32,23 +32,15 @@ contract IndividualAuction is IERC721Receiver {
     event HighestBidIncreased(address bidder, uint amount);
     event AuctionEnded(address winner, uint amount);
 
-    // The following is a so-called natspec comment,
-    // recognizable by the three slashes.
-    // It will be shown when the user is asked to
-    // confirm a transaction.
-
-    /// Create a simple auction with `_biddingTime`
-    /// seconds bidding time on behalf of the
-    /// beneficiary address `_beneficiary`.
     constructor(
         uint _biddingTime,
         uint _startingBid,
-        address _artist
+        address payable _admin
     ) payable {
         beneficiary = payable(msg.sender);
         auctionEndTime = block.timestamp + _biddingTime;
-        highestBidder = address(0);
         startingBid = _startingBid;
+        admin = _admin;
     }
 
     /// Bid on the auction with the value sent
@@ -73,17 +65,15 @@ contract IndividualAuction is IERC721Receiver {
         
         require(
             msg.value > startingBid,
-            "The bid has to be higher than the specified starting bid."
+            "Too low"
         );
         
         require(
             msg.sender != beneficiary,
-            "You cannot bid on your own auction."
+            "Can't bid on your own auction"
         );
 
-        if (highestBid != 0) {
-            pendingReturns[highestBidder] += highestBid;
-        }
+        pendingReturns[highestBidder] += highestBid;
         
         highestBidder = msg.sender;
         highestBid = msg.value;
@@ -91,11 +81,11 @@ contract IndividualAuction is IERC721Receiver {
     }
 
     function withdraw() public returns (bool) {
+        require(highestBidder != msg.sender, "Unauthorized");
+
         uint amount = pendingReturns[msg.sender];
         if (amount > 0) {
-            
             pendingReturns[msg.sender] = 0;
-
             if (!payable(msg.sender).send(amount)) {
                 // No need to call throw here, just reset the amount owing
                 pendingReturns[msg.sender] = amount;
@@ -114,11 +104,18 @@ contract IndividualAuction is IERC721Receiver {
     }
     
     function getTheHighestBid() public {
-        require(block.timestamp >= auctionEndTime, "Auction bidding time has not expired.");
-        require(ended, "Auction has not yet ended.");
         require(msg.sender == beneficiary, "You are not the beneficiary");
+        require(block.timestamp >= auctionEndTime, "Active auction");
+        require(ended == true, "Auction has not yet ended.");
+        require(isWithdrawn == false, "Already withdrawn"); 
         
-        beneficiary.transfer(highestBid);
+        isWithdrawn = true;
+
+        uint af = highestBid * 2 / 100;
+        uint payout = highestBid - af;
+        
+        admin.transfer(af);
+        beneficiary.transfer(payout);
     }
     
     function transferToken() public {
@@ -134,19 +131,8 @@ contract IndividualAuction is IERC721Receiver {
         nftContract.safeTransferFrom(address(this), highestBidder, tokenId);
     }
     
-    // function onERC721Received(address, address _from, uint256 _tokenId, bytes calldata) external override returns(bytes4) {
-    //     require(beneficiary == _from, "Only the beneficiary can transfer the token into the auction.");
-    //     require(tokenAdded == false, "The auction already has a token.");
-        
-    //     nftContract = ERC721(msg.sender);
-    //     tokenId = _tokenId;
-    //     tokenAdded = true;
-
-    //     return 0x150b7a02;
-    // }
-    
     function onERC721Received(address, address, uint256 _tokenId, bytes memory) public virtual override returns (bytes4) {
-        require(beneficiary == tx.origin, "Only the beneficiary can transfer the token into the auction.");
+        require(beneficiary == tx.origin, "Unauthorized");
         require(tokenAdded == false, "The auction already has a token.");
         
         nftContract = ERC721(msg.sender);

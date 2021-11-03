@@ -8,7 +8,7 @@ contract Solirey is ERC721 {
     using Counters for Counters.Counter;
     Counters.Counter internal _tokenIds;
     address payable internal admin; 
-    // The original artist
+    // The original artist: token ID to the artist address
     mapping (uint256 => address) public _artist;
     uint uid;
 

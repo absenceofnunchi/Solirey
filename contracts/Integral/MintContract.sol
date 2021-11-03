@@ -5,7 +5,7 @@ import "./Solirey.sol";
 
 contract MintContract is Solirey {
     using Counters for Counters.Counter;
-
+    
     function mintNft(address receiver) external returns (uint256) {
         _tokenIds.increment();
 

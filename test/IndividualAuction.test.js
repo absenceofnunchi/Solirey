@@ -1,10 +1,11 @@
 const Auction = artifacts.require("IndividualAuction");
 const mintContract = artifacts.require("MintContract")
 const helper = require("./helpers/truffleTestHelper");
+const { toBN } = web3.utils;
 
 contract("Individual Auction", (accounts) => {
     describe("One or more bidding", async() => {
-        let auctionInstance, startingBidInput, initialTokenId, admin, auctionDeployer, firstBidder, secondBidder;
+        let auctionInstance, startingBidInput, initialTokenId, admin, auctionDeployer, firstBidder, secondBidder, finalBidder, adminFee;
         before(async () => {
             initialTokenId = 1;
 
@@ -12,6 +13,8 @@ contract("Individual Auction", (accounts) => {
             auctionDeployer = accounts[5]
             firstBidder = accounts[6]
             secondBidder = accounts[7]
+            finalBidder = accounts[9]
+            adminFee = 2
 
             startingBidInput = web3.utils.toWei("1", "ether");
             auctionInstance = await Auction.deployed(200, startingBidInput, { from: auctionDeployer });
@@ -35,14 +38,14 @@ contract("Individual Auction", (accounts) => {
         it("successfully transfer a token into the contract", async () => {
             // Attempt to transfer a token into the aucton by a non-beneficiary.
             try {
-                let result = await mintContractInstance.mintNft(auctionInstance.address, { from: accounts[4] })
+                await mintContractInstance.mintNft(auctionInstance.address, { from: accounts[4] })
             } catch (error) {
-                assert.equal(error.reason, "Only the beneficiary can transfer the token into the auction.")
+                assert.equal(error.reason, "Unauthorized")
             }
 
             // Successfully transfer
             try {
-                let result = await mintContractInstance.mintNft(auctionInstance.address, { from: auctionDeployer })
+                await mintContractInstance.mintNft(auctionInstance.address, { from: auctionDeployer })
             } catch (error) {
                 console.log("error", error)
             }
@@ -71,7 +74,7 @@ contract("Individual Auction", (accounts) => {
             try {
                 await auctionInstance.bid({ from: firstBidder, value: 1 })
             } catch (error) {
-                assert.equal(error.reason, "The bid has to be higher than the specified starting bid.")
+                assert.equal(error.reason, "Too low")
             }
         })
     
@@ -80,21 +83,25 @@ contract("Individual Auction", (accounts) => {
                 const bidAmount = web3.utils.toWei("2", "ether");
                 await auctionInstance.bid({ from: auctionDeployer, value: bidAmount });
             } catch (error) {
-                assert.equal(error.reason, "You cannot bid on your own auction.");
+                assert.equal(error.reason, "Can't bid on your own auction");
             }
         })
     
         it("successfully bids.", async () => {
             const bidAmount = web3.utils.toWei("2", "ether");
-            await auctionInstance.bid({ from: firstBidder, value: bidAmount });
+            try {
+                await auctionInstance.bid({ from: firstBidder, value: bidAmount });
+            } catch (error) {
+                console.log(error)
+            }
             
             const highestBid = await auctionInstance.highestBid.call();
             const highestBidder = await auctionInstance.highestBidder.call();
-            // const pendingReturns = await auctionInstance.pendingReturns.call(highestBidder);
+            const pendingReturns = await auctionInstance.pendingReturns.call(highestBidder);
         
-            assert.equal(highestBid, bidAmount, "The bid not registered as the highest bid amount.");
+            assert.equal(highestBid, bidAmount, "The bid is not registered as the highest bid amount.");
             assert.equal(highestBidder, firstBidder, "The highest bidder is incorrect.");
-            // assert.equal(pendingReturns, 0, "Incorrect bid amount in pending returns."); // change pendingReturns to public
+            assert.equal(pendingReturns, 0, "Incorrect bid amount in pending returns."); // change pendingReturns to public
         })
     
         it("highest bid becomes pending returns", async () => {
@@ -109,6 +116,37 @@ contract("Individual Auction", (accounts) => {
             assert.equal(highestBid, bidAmount, "The bid not registered as the highest bid amount.");
             assert.equal(highestBidder, secondBidder, "The highest bidder is incorrect.");
             assert.equal(pendingReturns, previousBidAmount, "Incorrect bid amount in pending returns.");
+        })
+
+        it("multiple bidding", async () => {
+            // multiple bidding
+            let moreBids = web3.utils.toWei("4", "ether");
+            try {
+                await auctionInstance.bid({ from: accounts[4], value: moreBids });
+            } catch (error) {
+                console.log(error)
+            }
+
+            moreBids = web3.utils.toWei("5", "ether");
+            try {
+                await auctionInstance.bid({ from: accounts[6], value: moreBids });
+            } catch (error) {
+                console.log(error)
+            }
+
+            moreBids = web3.utils.toWei("6", "ether");
+            try {
+                await auctionInstance.bid({ from: accounts[7], value: moreBids });
+            } catch (error) {
+                console.log(error)
+            }
+
+            moreBids = web3.utils.toWei("7", "ether");
+            try {
+                await auctionInstance.bid({ from: finalBidder, value: moreBids });
+            } catch (error) {
+                console.log(error)
+            }
         })
     
         it("fails to withdraw", async() => {
@@ -129,7 +167,7 @@ contract("Individual Auction", (accounts) => {
                     { from: accounts[0] }
                 );
             } catch (error) {
-                assert.equal(error.reason, "Only the beneficiary can transfer the token into the auction.");
+                assert.equal(error.reason, "Unauthorized");
             }
     
             // token ID is till the same even after the failed attempt to transfer another one into the account
@@ -161,12 +199,12 @@ contract("Individual Auction", (accounts) => {
             try { 
                 await auctionInstance.getTheHighestBid({ from: auctionDeployer });
             } catch (error) {
-                assert.equal(error.reason, "Auction bidding time has not expired.");
+                assert.equal(error.reason, "Active auction");
             }
         
             // trying to transfer the token before the time expired
             try {
-                await auctionInstance.transferToken({ from: secondBidder });
+                await auctionInstance.transferToken({ from: finalBidder });
             } catch (error) {
                 assert.equal(error.reason, "Bidding time has not expired.");
             }
@@ -196,100 +234,66 @@ contract("Individual Auction", (accounts) => {
     
         it("beneficiary takes out the bid", async () => {
             try {
-                await auctionInstance.getTheHighestBid({ from: accounts[5] });
+                await auctionInstance.getTheHighestBid({ from: accounts[7] });
             } catch (error) {
                 assert.equal(error.reason, "You are not the beneficiary");
             }
         
-            // const balanceBefore = await 
+            const balanceBefore = await web3.eth.getBalance(auctionDeployer)
+            const adminBalanceBefore = await web3.eth.getBalance(admin)
+
+            let result;
+            try {
+                result = await auctionInstance.getTheHighestBid({ from: auctionDeployer });
+            } catch (error) {
+                console.log(error)
+            } 
+
+            // seller expected
+            const highestBid = await auctionInstance.highestBid.call()
+            const commission = toBN(highestBid).mul(toBN(adminFee)).div(toBN(100))
+            const expectedPayout =  toBN(highestBid).sub(toBN(commission))
+
+            // seller actual
+            const balanceAfter = await web3.eth.getBalance(auctionDeployer)
+            const diff = toBN(balanceAfter).sub(toBN(balanceBefore));
+            const totalGasCost = await helper.getTotalGasCost(result)
+            const actualPayout = toBN(diff).add(toBN(totalGasCost))
+
+            // admin actual
+            const adminBalanceAfter = await web3.eth.getBalance(admin)
+            const adminDiff = toBN(adminBalanceAfter).sub(toBN(adminBalanceBefore))
+
+            assert.equal(actualPayout.toString(), expectedPayout.toString(), "The seller payout is incorrect.")
+            assert.equal(adminDiff.toString(), commission.toString(), "The admin commission is incorrect.")
+
             try {
                 await auctionInstance.getTheHighestBid({ from: auctionDeployer });
             } catch (error) {
-                console.log(error)
-            }
-            
-            
+                assert.equal(error.reason, "Already withdrawn")
+            } 
         })
     
         it("transferring the token", async () => {
-            // const owner = await auctionInstance.nftContract.ownerOf(initialTokenId)
-            // console.log("owner", owner)
+            const owner = await mintContractInstance.ownerOf(initialTokenId)
+            assert.equal(owner, auctionInstance.address, "The owner before the transfer should be the auction deployer.")
 
-            // console.log("acc0", accounts[0])
-            // console.log("acc1", accounts[1])
-            // console.log("acc2", accounts[2])
-            // console.log("acc3", accounts[3])
+            // an unauthorized attempt to transfer the token
+            try {
+                await auctionInstance.transferToken({ from: accounts[3] });
+            } catch (error) {
+                assert.equal(error.reason, "You are not the highest bidder");
+            }
 
-        //   try {
-        //     await auctionInstance.transferToken({ from: accounts[3] });
-        //   } catch (error) {
-        //     assert.equal(error.reason, "You are not the highest bidder");
-        //   }
-    
-        //   try {
-        //     let tx = await auctionInstance.transferToken({ from: accounts[2] });
-        //     console.log("tx", tx)
-        //     assert.isTrue(tx.receipt.status)
-        //   } catch (error) {
-        //     console.log("final error", error)
-        //   }
+            // successful transfer of the token
+            try {
+                await auctionInstance.transferToken({ from: finalBidder });
+            } catch (error) {
+                console.log(error)
+            }
+
+            const newOwner = await mintContractInstance.ownerOf(initialTokenId)
+            assert.equal(newOwner, finalBidder, "The owner before the transfer should be the auction deployer.")
         })
   })
-
-  // describe("No bidding", async () => {
-  //   let noBidAuctionInstance, startingBidInput;
-
-  //   beforeEach(async () => {
-  //     startingBidInput = web3.utils.toWei("1", "ether");
-  //     noBidAuctionInstance = await Auction.deployed(10, startingBidInput, { from: accounts[0] });
-  //   })
-
-  //   it("transfer of token by the beneficiary", async () => {
-  //     const advancement = 600;
-  //     await helper.advanceTimeAndBlock(advancement);
-
-  //     let tx = await noBidAuctionInstance.auctionEnd({ from: accounts[0] });
-  //     // let tx = await auctionInstance2.transferToken({ from: accounts[0] });
-  //     // console.log("tx", tx);
-  //     console.log("status", tx.receipt.status)
-  //   })
-  // })
 });
-
-
-
-// contract("Auction", (accounts) => {
-//   describe("One or more bidding", async() => {
-//     let auctionInstance, startingBidInput;
-
-//     beforeEach(async () => {
-//       startingBidInput = web3.utils.toWei("1", "ether");
-//       auctionInstance = await Auction.deployed(10, startingBidInput);
-//     })
-
-//     it("End auction", async () => {
-//       const advancement = 600;
-//       await helper.advanceTimeAndBlock(advancement);
-
-//       let tx = await auctionInstance.auctionEnd({ from: accounts[0] });
-//       assert.isTrue(tx.receipt.status, "auctionEnded status is not true");
-//     })
-//   })
-
-//   describe("No bidding", async() => {
-//     let noBidAuctionInstance, startingBidInput2;
-
-//     beforeEach(async () => {
-//       startingBidInput2 = web3.utils.toWei("1", "ether");
-//       noBidAuctionInstance = await Auction.deployed(10, startingBidInput2);
-//     })
-
-//     it("End no bid auction", async () => {
-//       const advancement = 600;
-//       await helper.advanceTimeAndBlock(advancement);
-
-//       let tx = await noBidAuctionInstance.auctionEnd({ from: accounts[0] });
-//       assert.isTrue(tx.receipt.status, "auctionEnded status is not true");
-//     })
-//   })
-// })
