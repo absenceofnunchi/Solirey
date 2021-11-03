@@ -38,7 +38,7 @@ contract("During Auction", (accounts) => {
         } catch (error) {
             console.log("error", error)
         }
-
+    
         // Unsuccesfully attempt to create an auction under the identical ID
         try {
             // Calculate auction end time at the same time as the auction creat time

@@ -24,7 +24,7 @@ contract ParentSimplePayment is Solirey {
     event CreatePayment(uint id);
     event PaymentMade(uint id);
 
-    function abort(uint id) public {
+    function abort(uint id) external {
         Payment memory sp = _simplePayment[id];
         require(msg.sender == sp.seller, "Unauthorized");
         require(sp.price != 0, "Not for sale");
@@ -33,7 +33,7 @@ contract ParentSimplePayment is Solirey {
         _transfer(address(this), sp.seller, sp.tokenId);
     }
 
-    function resell(uint price, uint256 tokenId) public {
+    function resell(uint price, uint256 tokenId) external {
         require(
             price > 0,
             "Wrong pricing"
@@ -50,7 +50,7 @@ contract ParentSimplePayment is Solirey {
         _simplePayment[uid].seller = msg.sender;
     }
 
-    function withdrawFee(uint id) public {
+    function withdrawFee(uint id) external {
         require(
             admin == msg.sender,
             "Not authorized"

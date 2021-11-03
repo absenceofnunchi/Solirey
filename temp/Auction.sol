@@ -28,14 +28,14 @@ contract Auction is Solirey {
     mapping(uint => AuctionInfo) public _auctionInfo;
 
     // Events that will be emitted on changes.
-    event AuctionCreated(uint id);
+    event AuctionCreated(uint indexed id , address indexed seller);
     event HighestBidIncreased(uint id, address bidder, uint amount);
     event AuctionEnded(uint id);
 
-    function createAuction(uint _biddingTime, uint _startingBid) public {
+    function createAuction(uint _biddingTime, uint _startingBid) external {
         uid++;
 
-        emit AuctionCreated(uid);
+        emit AuctionCreated(uid, msg.sender);
 
         _tokenIds.increment();
 
@@ -49,7 +49,7 @@ contract Auction is Solirey {
         _auctionInfo[uid].startingBid = _startingBid;                        
     }
     
-    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) public {
+    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) external {
         require(
             ownerOf(tokenId) == msg.sender,
             "Not authorized"
@@ -57,10 +57,11 @@ contract Auction is Solirey {
 
         uid++;
 
-        emit AuctionCreated(uid);
+        emit AuctionCreated(uid, msg.sender);
         
         transferFrom(msg.sender, address(this), tokenId);
         
+        // AuctionInfo memory ai = _auctionInfo[uid];
         _auctionInfo[uid].tokenId = tokenId;
         _auctionInfo[uid].beneficiary = payable(msg.sender);
         _auctionInfo[uid].auctionEndTime = block.timestamp + _biddingTime;
@@ -68,7 +69,7 @@ contract Auction is Solirey {
         _auctionInfo[uid].startingBid = _startingBid;
     }
     
-    function abort(uint id) public {
+    function abort(uint id) external {
         require(
             msg.sender == _auctionInfo[id].beneficiary, 
             "Not authorized"
@@ -101,7 +102,7 @@ contract Auction is Solirey {
 
     /// Bid on the auction with the value sent
     /// The value will only be refunded if the auction is not won.
-    function bid(uint id) public payable {
+    function bid(uint id) external payable {
         require(
             block.timestamp <= _auctionInfo[id].auctionEndTime,
             "Auction already ended"
@@ -132,7 +133,7 @@ contract Auction is Solirey {
         emit HighestBidIncreased(id, msg.sender, msg.value);
     }
 
-    function withdraw(uint id) public returns (bool) {
+    function withdraw(uint id) external returns (bool) {
         uint amount = _auctionInfo[id].pendingReturns[msg.sender];
         
         if (amount > 0) {
@@ -147,7 +148,7 @@ contract Auction is Solirey {
         return true;
     }
 
-    function auctionEnd(uint id) public {
+    function auctionEnd(uint id) external {
         require(block.timestamp >= _auctionInfo[id].auctionEndTime, "Auction has not yet ended");
         require(_auctionInfo[id].ended == false, "auctionEnd has already been called");
 
@@ -158,7 +159,7 @@ contract Auction is Solirey {
         emit AuctionEnded(id);
     }
     
-    function getTheHighestBid(uint id) public payable {
+    function getTheHighestBid(uint id) external payable {
         require(block.timestamp >= _auctionInfo[id].auctionEndTime, "Auction bidding time has not expired");
         require(msg.sender == _auctionInfo[id].beneficiary, "You are not the beneficiary");
         require(_auctionInfo[id].transferred == false, "Already transferred");
@@ -176,15 +177,15 @@ contract Auction is Solirey {
     }
  
     // for testing only 
-    function getAdmin() public view returns (address) {
+    function getAdmin() external view returns (address) {
         return admin;
     }
 
-    function getAuctionInfo(uint id) public view returns (address beneficiary, uint auctionEndTime, uint startingBid, uint256 tokenId, address highestBidder, uint highestBid, bool ended) {
+    function getAuctionInfo(uint id) external view returns (address beneficiary, uint auctionEndTime, uint startingBid, uint256 tokenId, address highestBidder, uint highestBid, bool ended) {
         return (_auctionInfo[id].beneficiary, _auctionInfo[id].auctionEndTime, _auctionInfo[id].startingBid, _auctionInfo[id].tokenId, _auctionInfo[id].highestBidder, _auctionInfo[id].highestBid, _auctionInfo[id].ended);
     }
 
-    function getPendingReturn(uint id, address bidder) public view returns (uint) {
+    function getPendingReturn(uint id, address bidder) external view returns (uint) {
         return _auctionInfo[id].pendingReturns[bidder];
     }
 }

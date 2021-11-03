@@ -6,7 +6,7 @@ import "./ParentSimplePayment.sol";
 contract SimplePaymentTangible is ParentSimplePayment {
     using Counters for Counters.Counter;
 
-    function createPayment(uint price) public {
+    function createPayment(uint price) external {
         require(price > 0, "Wrong price");
 
         uid++;
@@ -24,7 +24,7 @@ contract SimplePaymentTangible is ParentSimplePayment {
     }
 
     // id is the posting identifier
-    function pay(uint id) public payable {
+    function pay(uint id) external payable {
         Payment memory sp = _simplePayment[id];
 
         require(  
@@ -52,7 +52,7 @@ contract SimplePaymentTangible is ParentSimplePayment {
         emit PaymentMade(id);
     }
     
-    function withdraw(uint id) public {
+    function withdraw(uint id) external {
         Payment memory sp = _simplePayment[id];
 
         require(msg.sender == sp.seller, "Not authorized");

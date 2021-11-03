@@ -28,7 +28,7 @@ contract Escrow is Solirey {
         _;
     }
     
-    function createEscrow() public payable returns (uint) {
+    function createEscrow() external payable returns (uint) {
         uid++;
         
         _tokenIds.increment();
@@ -46,7 +46,7 @@ contract Escrow is Solirey {
         return uid;
     }
     
-    function resell(uint256 tokenId) public payable returns (uint) {
+    function resell(uint256 tokenId) external payable returns (uint) {
         require(ownerOf(tokenId) == msg.sender, "Unauthorized");
 
         uid++;
@@ -59,14 +59,14 @@ contract Escrow is Solirey {
         return uid;
     }
     
-    function abort(uint id) public inState(State.Created, id) {
+    function abort(uint id) external inState(State.Created, id) {
         require(msg.sender == _escrowInfo[id].seller, "Unauthorized");
         
         _escrowInfo[id].state = State.Inactive;
         _escrowInfo[id].seller.transfer(_escrowInfo[id].value * 2);
     }
     
-    function confirmPurchase(uint id) public payable inState(State.Created, id) {
+    function confirmPurchase(uint id) external payable inState(State.Created, id) {
         require(msg.value == _escrowInfo[id].value * 2, "Wrong payment amount");
         
         emit PurchaseConfirmed(id);
@@ -74,7 +74,7 @@ contract Escrow is Solirey {
         _escrowInfo[id].state = State.Locked;
     }
     
-    function confirmReceived(uint id) public inState(State.Locked, id) {
+    function confirmReceived(uint id) external inState(State.Locked, id) {
         require(msg.sender == _escrowInfo[id].buyer, "Unauthorized");
         
         emit ItemReceived(id);
