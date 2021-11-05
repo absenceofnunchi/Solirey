@@ -175,6 +175,10 @@ contract Auction is Solirey {
         admin.transfer(fee);
         _auctionInfo[id].beneficiary.transfer(payment);
     }
+
+    function getPendingReturn(uint id) external view returns (uint) {
+        return _auctionInfo[id].pendingReturns[msg.sender];
+    }
  
     // for testing only 
     function getAdmin() external view returns (address) {
@@ -183,9 +187,5 @@ contract Auction is Solirey {
 
     function getAuctionInfo(uint id) external view returns (address beneficiary, uint auctionEndTime, uint startingBid, uint256 tokenId, address highestBidder, uint highestBid, bool ended) {
         return (_auctionInfo[id].beneficiary, _auctionInfo[id].auctionEndTime, _auctionInfo[id].startingBid, _auctionInfo[id].tokenId, _auctionInfo[id].highestBidder, _auctionInfo[id].highestBid, _auctionInfo[id].ended);
-    }
-
-    function getPendingReturn(uint id, address bidder) external view returns (uint) {
-        return _auctionInfo[id].pendingReturns[bidder];
     }
 }

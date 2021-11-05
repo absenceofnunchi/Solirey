@@ -184,7 +184,7 @@ contract("During Auction", (accounts) => {
         }
 
         // The first time bidding shouldn't have anything in pending return.
-        const pendingReturn = await contract.getPendingReturn(secondId, firstBuyer);
+        const pendingReturn = await contract.getPendingReturn(secondId, { from: firstBuyer });
 
         const auctionInfo = await contract.getAuctionInfo(secondId);
         const beneficiary = auctionInfo["beneficiary"]
@@ -217,7 +217,7 @@ contract("During Auction", (accounts) => {
         }
     })
 
-    it("Withdraws the proper outbid amount", async () => {
+    it("Get the pending return value", async () => {
         // underbid the current highest bid
         try {
             await contract.bid(secondId, { from: secondBuyer, value: 50 });
@@ -232,12 +232,18 @@ contract("During Auction", (accounts) => {
             console.log(error)
         }
 
+        const pendingReturn = await contract.getPendingReturn(secondId, { from: firstBuyer })
+
+        assert.equal(pendingReturn.toString(), initialBid, "Incorrect pending return amount.")
+    })
+
+    it("Withdraws the proper outbid amount", async () => {
         // check the pending return for the first buyer
-        const pendingReturnFirstBuyer = await contract.getPendingReturn(secondId, firstBuyer);
+        const pendingReturnFirstBuyer = await contract.getPendingReturn(secondId, { from: firstBuyer});
         assert.equal(pendingReturnFirstBuyer.toString(), initialBid, "Inaccurate pending return.");
 
         // check the pending return for the second buyer
-        const pendingReturnSecondBuyer = await contract.getPendingReturn(secondId, secondBuyer);
+        const pendingReturnSecondBuyer = await contract.getPendingReturn(secondId, { from: secondBuyer });
         assert.equal(pendingReturnSecondBuyer.toString(), 0, "Inaccurate pending return.");
 
         // The difference between the balance before and after the withdraw should be the same amount from pendingReturn
@@ -256,7 +262,7 @@ contract("During Auction", (accounts) => {
         let final = diff.add(toBN(totalGasCost));
         assert.equal(final.toString(), initialBid.toString(), "The withdrawn amount from pendingReturn doesn't match the bid mount.");
 
-        const firstBuyerFinalPendingReturn = await contract.getPendingReturn(secondId, firstBuyer);
+        const firstBuyerFinalPendingReturn = await contract.getPendingReturn(secondId, { from: firstBuyer });
 
         const auctionInfo = await contract.getAuctionInfo(secondId);
         const beneficiary = auctionInfo["beneficiary"]
