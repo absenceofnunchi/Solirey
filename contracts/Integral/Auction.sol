@@ -32,7 +32,7 @@ contract Auction is Solirey {
     event HighestBidIncreased(uint id, address bidder, uint amount);
     event AuctionEnded(uint id);
 
-    function createAuction(uint _biddingTime, uint _startingBid) external {
+    function createAuction(uint _biddingTime, uint _startingBid) public {
         uid++;
 
         emit AuctionCreated(uid, msg.sender);
@@ -49,7 +49,7 @@ contract Auction is Solirey {
         _auctionInfo[uid].startingBid = _startingBid;                        
     }
     
-    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) external {
+    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) public {
         require(
             ownerOf(tokenId) == msg.sender,
             "Not authorized"
@@ -61,79 +61,83 @@ contract Auction is Solirey {
         
         transferFrom(msg.sender, address(this), tokenId);
         
-        // AuctionInfo memory ai = _auctionInfo[uid];
-        _auctionInfo[uid].tokenId = tokenId;
-        _auctionInfo[uid].beneficiary = payable(msg.sender);
-        _auctionInfo[uid].auctionEndTime = block.timestamp + _biddingTime;
-        _auctionInfo[uid].highestBidder = address(0);
-        _auctionInfo[uid].startingBid = _startingBid;
+        AuctionInfo storage ai = _auctionInfo[uid];
+        ai.tokenId = tokenId;
+        ai.beneficiary = payable(msg.sender);
+        ai.auctionEndTime = block.timestamp + _biddingTime;
+        ai.highestBidder = address(0);
+        ai.startingBid = _startingBid;
     }
     
-    function abort(uint id) external {
+    function abort(uint id) public {
+        AuctionInfo storage ai = _auctionInfo[id];
+        
         require(
-            msg.sender == _auctionInfo[id].beneficiary, 
+            msg.sender == ai.beneficiary, 
             "Not authorized"
         );
         
         require(
-            _auctionInfo[id].highestBidder == address(0),
+            ai.highestBidder == address(0),
             "Cannot abort"
         );
         
         require(
-            _auctionInfo[id].highestBid == 0,
+            ai.highestBid == 0,
             "Cannot abort"
         );
         
         require(
-            block.timestamp <= _auctionInfo[id].auctionEndTime,
+            block.timestamp <= ai.auctionEndTime,
             "Auction already ended"
         );
         
         require(
-            _auctionInfo[id].ended == false,
+            ai.ended == false,
             "The auction has ended"
         );
         
-        _auctionInfo[id].ended = true;
+        ai.ended = true;
         
-        _transfer(address(this), _auctionInfo[id].beneficiary, _auctionInfo[id].tokenId);
+        _transfer(address(this), ai.beneficiary, ai.tokenId);
     }
 
     /// Bid on the auction with the value sent
     /// The value will only be refunded if the auction is not won.
-    function bid(uint id) external payable {
+    function bid(uint id) public payable {
+        AuctionInfo storage ai = _auctionInfo[id];
+
         require(
-            block.timestamp <= _auctionInfo[id].auctionEndTime,
+            block.timestamp <= ai.auctionEndTime,
             "Auction already ended"
         );
 
         // To prevent bidding on an aborted auction.
         require(
-            _auctionInfo[id].ended == false, 
+            ai.ended == false, 
             "Auction already ended"
         );
 
         require(
-            msg.value > _auctionInfo[id].highestBid,
+            msg.value > ai.highestBid,
             "Higher bid already exists"
         );
         
         require(
-            msg.value > _auctionInfo[id].startingBid,
+            msg.value > ai.startingBid,
             "The bid has to be higher than the specified starting bid"
         );
 
-        if (_auctionInfo[id].highestBid != 0) {
-            _auctionInfo[id].pendingReturns[_auctionInfo[id].highestBidder] += _auctionInfo[id].highestBid;
+        if (ai.highestBid != 0) {
+            ai.pendingReturns[ai.highestBidder] += ai.highestBid;
         }
         
-        _auctionInfo[id].highestBidder = msg.sender;
-        _auctionInfo[id].highestBid = msg.value;
+        ai.highestBidder = msg.sender;
+        ai.highestBid = msg.value;
         emit HighestBidIncreased(id, msg.sender, msg.value);
     }
 
-    function withdraw(uint id) external returns (bool) {
+    function withdraw(uint id) public returns (bool) {
         uint amount = _auctionInfo[id].pendingReturns[msg.sender];
         
         if (amount > 0) {
@@ -148,39 +152,46 @@ contract Auction is Solirey {
         return true;
     }
 
-    function auctionEnd(uint id) external {
-        require(block.timestamp >= _auctionInfo[id].auctionEndTime, "Auction has not yet ended");
-        require(_auctionInfo[id].ended == false, "auctionEnd has already been called");
-
-        _auctionInfo[id].ended = true;
+    function auctionEnd(uint id) public {
+        AuctionInfo storage ai = _auctionInfo[id];
         
-        _transfer(address(this), _auctionInfo[id].highestBidder, _auctionInfo[id].tokenId);
+        require(block.timestamp >= ai.auctionEndTime, "Auction has not yet ended");
+        require(ai.ended == false, "auctionEnd has already been called");
+
+        ai.ended = true;
+        
+        if (ai.highestBidder != address(0)) {
+            _transfer(address(this), ai.highestBidder, ai.tokenId);    
+        }
         
         emit AuctionEnded(id);
     }
     
-    function getTheHighestBid(uint id) external payable {
-        require(block.timestamp >= _auctionInfo[id].auctionEndTime, "Auction bidding time has not expired");
-        require(msg.sender == _auctionInfo[id].beneficiary, "You are not the beneficiary");
-        require(_auctionInfo[id].transferred == false, "Already transferred");
+    function getTheHighestBid(uint id) public payable {
+        AuctionInfo storage ai = _auctionInfo[id];
         
-        _auctionInfo[id].transferred = true;
+        require(block.timestamp >= ai.auctionEndTime, "Auction bidding time has not expired");
+        require(msg.sender == ai.beneficiary, "You are not the beneficiary");
+        require(ai.transferred == false, "Already transferred");
+        require(ai.ended == true);
+        
+        ai.transferred = true;
 
-        uint fee = _auctionInfo[id].highestBid * 2 / 100;
-        uint payment = _auctionInfo[id].highestBid - (fee * 2);
+        uint fee = ai.highestBid * 2 / 100;
+        uint payment = ai.highestBid - (fee * 2);
 
         address artist = _artist[_auctionInfo[id].tokenId];
         payable(artist).transfer(fee);    
 
         admin.transfer(fee);
-        _auctionInfo[id].beneficiary.transfer(payment);
+        ai.beneficiary.transfer(payment);
     }
-
+    
     function getPendingReturn(uint id) external view returns (uint) {
         return _auctionInfo[id].pendingReturns[msg.sender];
     }
- 
-    // for testing only 
+
+        // for testing only 
     function getAdmin() external view returns (address) {
         return admin;
     }
@@ -189,3 +200,4 @@ contract Auction is Solirey {
         return (_auctionInfo[id].beneficiary, _auctionInfo[id].auctionEndTime, _auctionInfo[id].startingBid, _auctionInfo[id].tokenId, _auctionInfo[id].highestBidder, _auctionInfo[id].highestBid, _auctionInfo[id].ended);
     }
 }
+ 
