@@ -203,23 +203,23 @@ contract("Individual Auction", (accounts) => {
             }
         
             // trying to transfer the token before the time expired
-            try {
-                await auctionInstance.transferToken({ from: finalBidder });
-            } catch (error) {
-                assert.equal(error.reason, "Bidding time has not expired.");
-            }
+            // try {
+            //     await auctionInstance.transferToken({ from: finalBidder });
+            // } catch (error) {
+            //     assert.equal(error.reason, "Bidding time has not expired.");
+            // }
         
             const advancement = 600;
             const newBlock = await helper.advanceTimeAndBlock(advancement);
             const originalBlock = web3.eth.getBlock('latest');
             const timeDiff = newBlock.timestamp - originalBlock.timestamp;
         
-            // trying to transfer the token before the auction ended
-            try {
-                await auctionInstance.transferToken({ from: accounts[1] });
-            } catch (error) {
-                assert.equal(error.reason, "Auction has not yet ended.");
-            }
+            // // trying to transfer the token before the auction ended
+            // try {
+            //     await auctionInstance.transferToken({ from: accounts[1] });
+            // } catch (error) {
+            //     assert.equal(error.reason, "Auction has not yet ended.");
+            // }
         
             let tx = await auctionInstance.auctionEnd({ from: accounts[1] });
             assert.isTrue(tx.receipt.status, "auctionEnded status is not true");
@@ -274,26 +274,26 @@ contract("Individual Auction", (accounts) => {
             } 
         })
     
-        it("transferring the token", async () => {
-            const owner = await mintContractInstance.ownerOf(initialTokenId)
-            assert.equal(owner, auctionInstance.address, "The owner before the transfer should be the auction deployer.")
+        // it("transferring the token", async () => {
+        //     const owner = await mintContractInstance.ownerOf(initialTokenId)
+        //     assert.equal(owner, auctionInstance.address, "The owner before the transfer should be the auction deployer.")
 
-            // an unauthorized attempt to transfer the token
-            try {
-                await auctionInstance.transferToken({ from: accounts[3] });
-            } catch (error) {
-                assert.equal(error.reason, "You are not the highest bidder");
-            }
+        //     // an unauthorized attempt to transfer the token
+        //     try {
+        //         await auctionInstance.transferToken({ from: accounts[3] });
+        //     } catch (error) {
+        //         assert.equal(error.reason, "You are not the highest bidder");
+        //     }
 
-            // successful transfer of the token
-            try {
-                await auctionInstance.transferToken({ from: finalBidder });
-            } catch (error) {
-                console.log(error)
-            }
+        //     // successful transfer of the token
+        //     try {
+        //         await auctionInstance.transferToken({ from: finalBidder });
+        //     } catch (error) {
+        //         console.log(error)
+        //     }
 
-            const newOwner = await mintContractInstance.ownerOf(initialTokenId)
-            assert.equal(newOwner, finalBidder, "The owner before the transfer should be the auction deployer.")
-        })
+        //     const newOwner = await mintContractInstance.ownerOf(initialTokenId)
+        //     assert.equal(newOwner, finalBidder, "The owner before the transfer should be the auction deployer.")
+        // })
   })
 });

@@ -100,6 +100,13 @@ contract IndividualAuction is IERC721Receiver {
         require(ended == false, "Auction has already been ended.");
 
         ended = true;
+        
+        if (highestBidder == address(0)) {
+            highestBidder = beneficiary;
+        }
+        
+        nftContract.safeTransferFrom(address(this), highestBidder, tokenId);
+        
         emit AuctionEnded(highestBidder, highestBid);
     }
     
@@ -118,18 +125,18 @@ contract IndividualAuction is IERC721Receiver {
         beneficiary.transfer(payout);
     }
     
-    function transferToken() public {
-        require(block.timestamp >= auctionEndTime, "Bidding time has not expired.");
-        require(ended, "Auction has not yet ended.");
+    // function transferToken() public {
+    //     require(block.timestamp >= auctionEndTime, "Bidding time has not expired.");
+    //     require(ended, "Auction has not yet ended.");
         
-        if (highestBidder == address(0)) {
-            highestBidder = beneficiary;
-        }
+    //     if (highestBidder == address(0)) {
+    //         highestBidder = beneficiary;
+    //     }
         
-        require(msg.sender == highestBidder, "You are not the highest bidder");
+    //     require(msg.sender == highestBidder, "You are not the highest bidder");
 
-        nftContract.safeTransferFrom(address(this), highestBidder, tokenId);
-    }
+    //     nftContract.safeTransferFrom(address(this), highestBidder, tokenId);
+    // }
     
     function onERC721Received(address, address, uint256 _tokenId, bytes memory) public virtual override returns (bytes4) {
         require(beneficiary == tx.origin, "Unauthorized");
