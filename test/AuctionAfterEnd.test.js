@@ -135,7 +135,7 @@ contract("After Auction", (accounts) => {
         // const dateObject = new Date(auctionEndTime.toNumber() * 1000);
 
         // Since no one has been outbid, there shouldn't be any pending return.
-        const pendingReturn = await contract.getPendingReturn(initialId, firstBuyer);
+        const pendingReturn = await contract.getPendingReturn(initialId, { from: firstBuyer });
 
         // check the balance of the admin to confirm the new deposit
         const adminDiff = toBN(adminBalanceAfter).sub(toBN(adminBalanceBefore))

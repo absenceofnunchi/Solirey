@@ -116,11 +116,16 @@ contract("During Auction", (accounts) => {
     })
 
     it("Successfully abort the auction", async () => {
+        // Unsuccessfully end
         try {
             await contract.abort(initialId, { from: firstBuyer })
         } catch (error) {
             assert.equal(error.reason, "Not authorized");
         }
+
+        const auctionInfoBeforeAbort = await contract._auctionInfo(initialId)
+        const endedBeforeAbort = auctionInfoBeforeAbort["ended"]
+        assert.isFalse(endedBeforeAbort, "The ended variable should be false before aborting.");
 
         let result;
         try {

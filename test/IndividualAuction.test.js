@@ -94,6 +94,12 @@ contract("Individual Auction", (accounts) => {
             } catch (error) {
                 console.log(error)
             }
+
+            try {
+                await auctionInstance.abort({ from: auctionDeployer })
+            } catch (error) {
+                assert.equal(error.reason, "Already bid")
+            }
             
             const highestBid = await auctionInstance.highestBid.call();
             const highestBidder = await auctionInstance.highestBidder.call();
@@ -273,7 +279,7 @@ contract("Individual Auction", (accounts) => {
                 assert.equal(error.reason, "Already withdrawn")
             } 
         })
-    
+
         // it("transferring the token", async () => {
         //     const owner = await mintContractInstance.ownerOf(initialTokenId)
         //     assert.equal(owner, auctionInstance.address, "The owner before the transfer should be the auction deployer.")

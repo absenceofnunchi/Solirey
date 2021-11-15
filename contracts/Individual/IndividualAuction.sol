@@ -42,12 +42,38 @@ contract IndividualAuction is IERC721Receiver {
         startingBid = _startingBid;
         admin = _admin;
     }
+    
+    function abort() external {
+        require(
+            beneficiary == msg.sender,
+            "Not authorized"
+        );
+        
+        require(
+            highestBidder == address(0),
+            "Already bid"
+        );
+        
+        require(
+            block.timestamp <= auctionEndTime,
+            "Auction already expired"
+        );
+        
+        require(
+            ended == false,
+            "Auction already ended"
+        );
+        
+        ended = true;
+        
+        nftContract.transferFrom(address(this), beneficiary, tokenId);
+    }
 
     /// Bid on the auction with the value sent
     /// together with this transaction.
     /// The value will only be refunded if the
     /// auction is not won.
-    function bid() public payable {
+    function bid() external payable {
         require(
             tokenAdded == true,
             "Token must be added first."
@@ -80,7 +106,7 @@ contract IndividualAuction is IERC721Receiver {
         emit HighestBidIncreased(msg.sender, msg.value);
     }
 
-    function withdraw() public returns (bool) {
+    function withdraw() external returns (bool) {
         require(highestBidder != msg.sender, "Unauthorized");
 
         uint amount = pendingReturns[msg.sender];
@@ -95,7 +121,7 @@ contract IndividualAuction is IERC721Receiver {
         return true;
     }
 
-    function auctionEnd() public {
+    function auctionEnd() external {
         require(block.timestamp >= auctionEndTime, "Auction has not yet ended.");
         require(ended == false, "Auction has already been ended.");
 
@@ -110,7 +136,7 @@ contract IndividualAuction is IERC721Receiver {
         emit AuctionEnded(highestBidder, highestBid);
     }
     
-    function getTheHighestBid() public {
+    function getTheHighestBid() external {
         require(msg.sender == beneficiary, "You are not the beneficiary");
         require(block.timestamp >= auctionEndTime, "Active auction");
         require(ended == true, "Auction has not yet ended.");
