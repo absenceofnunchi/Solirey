@@ -16,3 +16,27 @@ contract Solirey is ERC721 {
         admin = payable(msg.sender);
     }
 }
+
+contract Old {
+    function f1() external pure {
+
+    }
+}
+
+contract New {
+    Old OLD; // Intitilize old contract variable (empty)
+
+    /**
+    * Set the address for Old contract (We call this function and enter the address of the OLD contract)
+    */
+    function setOldContractAddress(address addr) public {
+        OLD = Old(addr);
+    }
+
+    /**
+    * Function that allows us to call f1() from the Old contract
+    */
+    function callOLDcontract() public view {
+        OLD.f1();
+    }
+}
