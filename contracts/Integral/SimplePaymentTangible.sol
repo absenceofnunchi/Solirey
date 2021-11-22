@@ -4,20 +4,23 @@ pragma solidity ^0.8.0;
 import "./ParentSimplePayment.sol";
 
 contract SimplePaymentTangible is ParentSimplePayment {
-    using Counters for Counters.Counter;
+    constructor(address solireyAddress) ParentSimplePayment(solireyAddress) {
+        solirey = Solirey(solireyAddress);
+    }
 
     function createPayment(uint price) external {
         require(price > 0, "Wrong price");
 
-        uid++;
+        solirey.incrementUid();
+        uint256 uid = solirey.currentUid();
 
         emit CreatePayment(uid);
         
-        _tokenIds.increment();
+        solirey.incrementToken();
 
-        uint256 newTokenId = _tokenIds.current();
-        _mint(address(this), newTokenId);
-        
+        uint256 newTokenId = solirey.currentToken();
+        solirey.mint(address(this), newTokenId);
+
         _simplePayment[uid].price = price;
         _simplePayment[uid].tokenId = newTokenId;
         _simplePayment[uid].seller = msg.sender;
@@ -44,7 +47,7 @@ contract SimplePaymentTangible is ParentSimplePayment {
         
         // transfer the token
         uint256 tokenId = sp.tokenId;
-        _transfer(address(this), msg.sender, tokenId);
+        solirey.transferFrom(address(this), msg.sender, tokenId);
         sp.price = 0; // not for sale anymore
         
         _simplePayment[id] = sp;

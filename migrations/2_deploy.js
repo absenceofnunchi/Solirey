@@ -12,14 +12,16 @@ module.exports = function(deployer, _, accounts) {
     const initialSeller = accounts[1];
     const priceInput = web3.utils.toWei("1", "ether");    
 
-    deployer.deploy(solirey, { from: admin });
-    deployer.deploy(mintContract, { from: admin });
-    deployer.deploy(auction);
-    deployer.deploy(escrow, { from: admin });
-    deployer.deploy(simplePaymentDigital, { from: admin });
-    deployer.deploy(simplePaymentTangible, { from: admin });
-    deployer.deploy(individualSimplePaymentTangible, priceInput, admin, { from: initialSeller })
+    deployer.deploy(solirey, { from: admin })
+    .then(() => {
+        deployer.deploy(auction, solirey.address, { from: admin })
+        deployer.deploy(escrow, solirey.address, { from: admin });
+        deployer.deploy(simplePaymentDigital, solirey.address, { from: admin });
+        deployer.deploy(simplePaymentTangible, solirey.address, { from: admin });
+    })
 
+    deployer.deploy(mintContract, { from: admin });
+    deployer.deploy(individualSimplePaymentTangible, priceInput, admin, { from: initialSeller })
     const startingBid = web3.utils.toWei("1", "ether");
     deployer.deploy(individualAuction, 300, startingBid, admin, { from: accounts[5] });
 }

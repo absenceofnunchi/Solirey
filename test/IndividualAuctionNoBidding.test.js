@@ -27,7 +27,7 @@ contract("Individual Auction with no bidding", (accounts) => {
         await helper.advanceTimeAndBlock(advancement);
 
         try {
-            await contract.auctionEnd({ from: auctionDeployer });
+            await contract.auctionEnd({ from: accounts[1] });
         } catch (error) {
             console.log(error)
         }

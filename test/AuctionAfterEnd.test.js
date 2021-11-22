@@ -1,17 +1,18 @@
 const auction = artifacts.require("Auction");
+const solirey = artifacts.require("Solirey");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
 contract("After Auction", (accounts) => {
-    let contract, admin, initialSeller, initialId, newId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, initialBid;
+    let contract, solireyContract, admin, initialSeller, initialId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, initialBid;
     before(async () => {
         admin = accounts[0];
         firstBuyer = accounts[1];
         secondBuyer = accounts[2];
         contract = await auction.deployed({ from: admin });
+        solireyContract = await solirey.deployed({ from: admin });
 
         initialSeller = accounts[3];
-        newId = "newId"
         initialBiddingTime = 100
         initialStartingBid = 100
         initialBid = web3.utils.toWei('1', 'ether')
@@ -33,7 +34,7 @@ contract("After Auction", (accounts) => {
 
         initialId = result.logs[0].args["id"]
 
-        // bid before the auction end time 
+        // Successfully bid before the auction end time 
         try {
             await contract.bid(initialId, { from: firstBuyer, value: initialBid });
         } catch(error) {
@@ -79,13 +80,13 @@ contract("After Auction", (accounts) => {
         try {
             await contract.auctionEnd(initialId)
         } catch (error) {
-            assert.equal(error.reason, "auctionEnd has already been called")
+            assert.equal(error.reason, "Already ended")
         }
 
         const auctionInfo = await contract._auctionInfo(initialId);
         const tokenId = auctionInfo["tokenId"]
         // Check that the new owner of the token executed from auctionEnd is the firstBuyer
-        const owner = await contract.ownerOf(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
         assert.equal(owner, firstBuyer, "The new owner of the token should be the first buyer.")
         assert.isTrue(result.receipt.status, "The status for the auctionEnd method call has to be true.")
     })
@@ -98,8 +99,10 @@ contract("After Auction", (accounts) => {
             assert.equal(error.reason, "You are not the beneficiary")
         }
 
+        // Successfully get the highest bid by the seller
         const balanceBefore = await web3.eth.getBalance(initialSeller)
         const adminBalanceBefore = await web3.eth.getBalance(admin)
+
         let getResult;
         try {
             getResult = await contract.getTheHighestBid(initialId, { from: initialSeller })
@@ -111,17 +114,14 @@ contract("After Auction", (accounts) => {
         const adminBalanceAfter = await web3.eth.getBalance(admin)
 
         // calculate the total gas cost
-        const gasUsed = getResult.receipt.gasUsed;
-        const tx = await web3.eth.getTransaction(getResult.tx)
-        const gasPrice = tx.gasPrice
-        const totalGasCost = gasUsed * gasPrice; 
+        const totalGasCost = await helper.getTotalGasCost(getResult)
 
         const diff = toBN(balanceAfter).sub(toBN(balanceBefore))
-        const diffAndGas = diff.add(toBN(totalGasCost))
+        const actualSellerBalanceDifference = toBN(diff).add(toBN(totalGasCost))
 
-        // add back the fee
         const fee = toBN(initialBid).mul(toBN(2)).div(toBN(100))
-        const final = diffAndGas.add(toBN(fee)).add(toBN(fee))
+        // Subtract the fee only once because the current seller is also the original artist which gets paid their own commission.
+        const expectedSellerDifference = toBN(initialBid).sub(toBN(fee))
 
         const auctionInfo = await contract._auctionInfo(initialId);
         const beneficiary = auctionInfo["beneficiary"]
@@ -150,8 +150,7 @@ contract("After Auction", (accounts) => {
         assert.equal(highestBid, initialBid, "The highestBid should be at 0.");
         assert.isTrue(ended, "The ended variable should be false by default.");
         assert.isTrue(transferred, "The transferred variable should be false by default.");
-        assert.equal(final.toString(), initialBid.toString(), "The amount collected by the seller is different from the amount paid by the buyer.")
-        assert.equal(final.toString(), highestBid.toString(), "The amount collected by the seller has to be same as the highest bid.")
+        assert.equal(actualSellerBalanceDifference.toString(), expectedSellerDifference.toString(), "The amount collected by the seller is different from the amount paid by the buyer.")
         assert.equal(adminDiff.toString(), fee.toString(), "The increased balance of the admin's account should match the newly deposited fee.")
     })
 
@@ -183,7 +182,7 @@ contract("After Auction", (accounts) => {
         const highestBid = newAuctionInfo["highestBid"]
         const ended = newAuctionInfo["ended"]
         const transferred = newAuctionInfo["transferred"]
-        const owner = await contract.ownerOf(newTokenId)
+        const owner = await solireyContract.ownerOf(newTokenId)
 
         assert.equal(beneficiary, firstBuyer, "The seller and the beneficiary aren't the same.");
         assert.equal(startingBid, initialStartingBid, "The initialStartingBid and the startingBid aren't the same.");

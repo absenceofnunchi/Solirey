@@ -1,13 +1,15 @@
 const auction = artifacts.require("Auction");
+const solirey = artifacts.require("Solirey");
 const { toBN } = web3.utils;
 
 contract("During Auction", (accounts) => {
-    let contract, admin, initialSeller, initialId, secondId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid, initialTokenId;
+    let contract, solireyContract, admin, initialSeller, initialId, secondId, initialBiddingTime, initialStartingBid, initialAuctionEndTime, firstBuyer, secondBuyer, initialBid, secondBid, initialTokenId;
     before(async () => {
         admin = accounts[0];
         firstBuyer = accounts[1];
         secondBuyer = accounts[2];
         contract = await auction.deployed({ from: admin });
+        solireyContract = await solirey.deployed({ from: admin });
 
         initialSeller = accounts[3];
         prelimId = "prelimId"
@@ -21,7 +23,6 @@ contract("During Auction", (accounts) => {
 
     it("Successfully deployed", async () => {
         const retrievedAdmin = await contract.getAdmin.call();
-
         assert.equal(retrievedAdmin, admin, "The admin is incorrect.");
     });
 
@@ -35,6 +36,15 @@ contract("During Auction", (accounts) => {
             initialAuctionEndTime = new Date(timeObject.getTime() + initialBiddingTimeInMilliSeconds);
 
             result = await contract.createAuction(initialBiddingTime, initialStartingBid, { from: initialSeller });
+
+            // Since the Transfer event is emitted by the Solirey contract, not the Auction contract, the event has to be separately captured.
+            const events = await solireyContract.getPastEvents("Transfer", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                if (event.event == "Transfer") {
+                    initialTokenId = event.returnValues.tokenId
+                }
+            }
         } catch (error) {
             console.log("error", error)
         }
@@ -51,10 +61,8 @@ contract("During Auction", (accounts) => {
             assert.equal(error.reason, "This ID has already been used.", "The attempt to create an auction under the same ID should fail.")
         }
 
-        initialId = result.logs[0].args["id"]
-        initialTokenId = result.logs[1].args["2"]
+        initialId = result.logs[0].args["id"].toString()
         const auctionInfo = await contract.getAuctionInfo(initialId);
-        
         const beneficiary = auctionInfo["beneficiary"]
         const auctionEndTime = auctionInfo["auctionEndTime"]
         const startingBid = auctionInfo["startingBid"]
@@ -66,7 +74,7 @@ contract("During Auction", (accounts) => {
         const dateObject = new Date(auctionEndTime.toNumber() * 1000);
 
         // check that the owner of the newly minted token is the current contract
-        const owner = await contract.ownerOf(tokenId);
+        const owner = await solireyContract.ownerOf(tokenId);
 
         assert.isTrue(result.receipt.status, "The status for the createAuction method isn't true.");
         assert.equal(beneficiary, initialSeller, "The seller and the beneficiary aren't the same.");
@@ -136,11 +144,11 @@ contract("During Auction", (accounts) => {
 
         const auctionInfo = await contract._auctionInfo(initialId)
         const tokenId = auctionInfo["tokenId"]
-        const owner = await contract.ownerOf(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
         const ended = auctionInfo["ended"]
 
         assert.isTrue(result.receipt.status, "The status of the transaction should be true.");
-        assert.equal(owner, initialSeller, "The owner of the token ID 1 minted from prelimId should be the initialSeller.")
+        assert.equal(owner, initialSeller, "The owner of the token ID 1 should still be the initialSeller.")
         assert.isTrue(ended, "The ended variable should say true.")
     })
 
@@ -154,7 +162,14 @@ contract("During Auction", (accounts) => {
 
             let createResult = await contract.createAuction(initialBiddingTime, initialStartingBid, { from: initialSeller });
             secondId = createResult.logs[0].args["id"]
-            initialTokenId = createResult.logs[1].args["2"]
+
+            const events = await solireyContract.getPastEvents("Transfer", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                if (event.event == "Transfer") {
+                    initialTokenId = event.returnValues.tokenId
+                }
+            }
         } catch (error) {
             console.log("error", error)
         }

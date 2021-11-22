@@ -4,27 +4,29 @@ pragma solidity ^0.8.0;
 import "./ParentSimplePayment.sol";
 
 contract SimplePaymentDigital is ParentSimplePayment {
-    using Counters for Counters.Counter;
+    constructor(address solireyAddress) ParentSimplePayment(solireyAddress) {
+        require(msg.sender == solirey.admin());
+        solirey = Solirey(solireyAddress);
+    }
 
     function createPayment(uint price) external {
         require(price > 0, "Wrong price");
 
-        uid++;
+        solirey.incrementUid();
+        uint256 uid = solirey.currentUid();
 
         emit CreatePayment(uid);
         
-        _tokenIds.increment();
+        solirey.incrementToken();
 
-        uint256 newTokenId = _tokenIds.current();
-        _mint(address(this), newTokenId);
+        uint256 newTokenId = solirey.currentToken();
+        solirey.mint(address(this), newTokenId);
         
-        // _forSale[newTokenId] = true;
-
         _simplePayment[uid].price = price;
         _simplePayment[uid].tokenId = newTokenId;
         _simplePayment[uid].seller = msg.sender;
 
-        _artist[newTokenId] = msg.sender;
+        solirey.updateArtist(newTokenId, msg.sender);
     }
 
     // id is the posting identifier
@@ -43,15 +45,15 @@ contract SimplePaymentDigital is ParentSimplePayment {
         
         // make a payment for the seller to withdraw
         uint _fee = msg.value * 2 / 100;
-       sp.payment = msg.value - _fee - _fee;
-       sp.fee = _fee;
+        sp.payment = msg.value - _fee - _fee;
+        sp.fee = _fee;
         
         // not for sale anymore
         sp.price = 0; 
 
         // transfer the token
         uint256 tokenId = sp.tokenId;
-        _transfer(address(this), msg.sender, tokenId);
+        solirey.transferFrom(address(this), msg.sender, tokenId);
         
         _simplePayment[id] = sp;
 
@@ -66,7 +68,7 @@ contract SimplePaymentDigital is ParentSimplePayment {
 
         _simplePayment[id].payment = 0;
         
-        payable(_artist[sp.tokenId]).transfer(sp.fee);
+        payable(solirey._artist(sp.tokenId)).transfer(sp.fee);
         payable(msg.sender).transfer(sp.payment);
     }
 }

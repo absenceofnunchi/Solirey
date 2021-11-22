@@ -3,9 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Solirey.sol";
 
-contract Auction {
-    Solirey solirey;
-
+contract Auction1 is Solirey {
     struct AuctionInfo {
         address payable beneficiary;
         // Parameters of the auction. Times are either
@@ -23,6 +21,8 @@ contract Auction {
         bool ended;
         bool transferred;
     }
+    
+    using Counters for Counters.Counter;
 
     // mapping from item ID to AuctionInfo
     mapping(uint => AuctionInfo) public _auctionInfo;
@@ -32,41 +32,34 @@ contract Auction {
     event HighestBidIncreased(uint id, address bidder, uint amount);
     event AuctionEnded(uint id);
 
-    constructor(address solireyAddress) {
-        solirey = Solirey(solireyAddress);
-    }
-
-    function createAuction(uint _biddingTime, uint _startingBid) external {
-        solirey.incrementUid();
-        uint256 uid = solirey.currentUid();
+    function createAuction(uint _biddingTime, uint _startingBid) public {
+        uid++;
 
         emit AuctionCreated(uid, msg.sender);
 
-        solirey.incrementToken();
+        _tokenIds.increment();
 
-        uint256 tokenId = solirey.currentToken();
-        solirey.mint(address(this), tokenId);
+        uint256 newTokenId = _tokenIds.current();
+        _mint(address(this), newTokenId);
 
-        solirey.updateArtist(uid, msg.sender);
-
-        _auctionInfo[uid].tokenId = tokenId;
+        _auctionInfo[uid].tokenId = newTokenId;
         _auctionInfo[uid].beneficiary = payable(msg.sender);
         _auctionInfo[uid].auctionEndTime = block.timestamp + _biddingTime;
+        // _auctionInfo[uid].highestBidder = address(0);
         _auctionInfo[uid].startingBid = _startingBid;                        
     }
     
-    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) external {
+    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) public {
         require(
-            solirey.ownerOf(tokenId) == msg.sender,
+            ownerOf(tokenId) == msg.sender,
             "Not authorized"
         );
 
-        solirey.incrementUid();
-        uint256 uid = solirey.currentUid();
+        uid++;
 
         emit AuctionCreated(uid, msg.sender);
         
-        solirey.tokenTransfer(msg.sender, address(this), tokenId);
+        transferFrom(msg.sender, address(this), tokenId);
         
         AuctionInfo storage ai = _auctionInfo[uid];
         ai.tokenId = tokenId;
@@ -76,7 +69,7 @@ contract Auction {
         ai.startingBid = _startingBid;
     }
     
-    function abort(uint id) external {
+    function abort(uint id) public {
         AuctionInfo storage ai = _auctionInfo[id];
         
         require(
@@ -104,13 +97,14 @@ contract Auction {
             "The auction has ended"
         );
         
-        _auctionInfo[id].ended = true;
-        solirey.transferFrom(address(this), ai.beneficiary, ai.tokenId);
+        ai.ended = true;
+        
+        _transfer(address(this), ai.beneficiary, ai.tokenId);
     }
 
     /// Bid on the auction with the value sent
     /// The value will only be refunded if the auction is not won.
-    function bid(uint id) external payable {
+    function bid(uint id) public payable {
         AuctionInfo storage ai = _auctionInfo[id];
 
         require(
@@ -138,13 +132,12 @@ contract Auction {
             ai.pendingReturns[ai.highestBidder] += ai.highestBid;
         }
         
-        _auctionInfo[id].highestBidder = msg.sender;
-        _auctionInfo[id].highestBid = msg.value;
-
+        ai.highestBidder = msg.sender;
+        ai.highestBid = msg.value;
         emit HighestBidIncreased(id, msg.sender, msg.value);
     }
 
-    function withdraw(uint id) external returns (bool) {
+    function withdraw(uint id) public returns (bool) {
         uint amount = _auctionInfo[id].pendingReturns[msg.sender];
         
         if (amount > 0) {
@@ -159,24 +152,22 @@ contract Auction {
         return true;
     }
 
-    function auctionEnd(uint id) external {
+    function auctionEnd(uint id) public {
         AuctionInfo storage ai = _auctionInfo[id];
         
         require(block.timestamp >= ai.auctionEndTime, "Auction has not yet ended");
-        require(ai.ended == false, "Already ended");
+        require(ai.ended == false, "auctionEnd has already been called");
 
-        _auctionInfo[id].ended = true;
+        ai.ended = true;
         
         if (ai.highestBidder != address(0)) {
-            solirey.transferFrom(address(this), ai.highestBidder, ai.tokenId);    
-        } else {
-            solirey.transferFrom(address(this), ai.beneficiary, ai.tokenId);    
+            _transfer(address(this), ai.highestBidder, ai.tokenId);    
         }
         
         emit AuctionEnded(id);
     }
     
-    function getTheHighestBid(uint id) external payable {
+    function getTheHighestBid(uint id) public payable {
         AuctionInfo storage ai = _auctionInfo[id];
         
         require(block.timestamp >= ai.auctionEndTime, "Auction bidding time has not expired");
@@ -184,14 +175,15 @@ contract Auction {
         require(ai.transferred == false, "Already transferred");
         require(ai.ended == true);
         
-        _auctionInfo[id].transferred = true;
+        ai.transferred = true;
 
         uint fee = ai.highestBid * 2 / 100;
-        uint payment = ai.highestBid - fee - fee;
+        uint payment = ai.highestBid - (fee * 2);
 
-        address artist = solirey._artist(_auctionInfo[id].tokenId);
+        address artist = _artist[_auctionInfo[id].tokenId];
         payable(artist).transfer(fee);    
-        solirey.admin().transfer(fee);
+
+        admin.transfer(fee);
         ai.beneficiary.transfer(payment);
     }
     
@@ -199,12 +191,13 @@ contract Auction {
         return _auctionInfo[id].pendingReturns[msg.sender];
     }
 
-    // for testing only 
+        // for testing only 
     function getAdmin() external view returns (address) {
-        return solirey.admin();
+        return admin;
     }
 
     function getAuctionInfo(uint id) external view returns (address beneficiary, uint auctionEndTime, uint startingBid, uint256 tokenId, address highestBidder, uint highestBid, bool ended) {
         return (_auctionInfo[id].beneficiary, _auctionInfo[id].auctionEndTime, _auctionInfo[id].startingBid, _auctionInfo[id].tokenId, _auctionInfo[id].highestBidder, _auctionInfo[id].highestBid, _auctionInfo[id].ended);
     }
 }
+ 

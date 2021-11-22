@@ -3,9 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Solirey.sol";
 
-contract Escrow {
-    Solirey solirey;
-
+contract Escrow is Solirey {
     struct EscrowInfo {
         uint value;
         address payable seller;
@@ -16,9 +14,9 @@ contract Escrow {
     }
     
     enum State { Created, Locked, Inactive }
+    using Counters for Counters.Counter;
     mapping (uint => EscrowInfo) public _escrowInfo;
 
-    event CreateEscrow(uint id);
     event PurchaseConfirmed(uint id);
     event ItemReceived(uint id);
     
@@ -29,35 +27,29 @@ contract Escrow {
         );
         _;
     }
-
-    constructor(address solireyAddress) {
-        solirey = Solirey(solireyAddress);
-    }
     
-    function createEscrow() external payable {
-        solirey.incrementUid();
-        uint256 uid = solirey.currentUid();
+    function createEscrow() external payable returns (uint) {
+        uid++;
         
-        emit CreateEscrow(uid);
+        _tokenIds.increment();
 
-        solirey.incrementToken();
-
-        uint256 newTokenId = solirey.currentToken();
-        solirey.mint(msg.sender, newTokenId);
+        uint256 newTokenId = _tokenIds.current();
+        _mint(msg.sender, newTokenId);
         
         _escrowInfo[uid].value = msg.value / 2;
         require((2 * _escrowInfo[uid].value) == msg.value, "Value has to be even");
         _escrowInfo[uid].seller = payable(msg.sender);
         _escrowInfo[uid].tokenId = newTokenId;
         // Register the original artist
-        solirey.updateArtist(newTokenId, msg.sender);
+        _artist[newTokenId] = msg.sender;
+        
+        return uid;
     }
     
     function resell(uint256 tokenId) external payable returns (uint) {
-        require(solirey.ownerOf(tokenId) == msg.sender, "Unauthorized");
+        require(ownerOf(tokenId) == msg.sender, "Unauthorized");
 
-        solirey.incrementUid();
-        uint256 uid = solirey.currentUid();
+        uid++;
         
         _escrowInfo[uid].value = msg.value / 2;
         require((2 * _escrowInfo[uid].value) == msg.value, "Value has to be even");
@@ -92,10 +84,10 @@ contract Escrow {
         uint fee = value * 2 / 100;
         uint payment = value * 3 - (fee * 2);
         
-        address artist = solirey._artist(_escrowInfo[id].tokenId);
+        address artist = _artist[_escrowInfo[id].tokenId];
         payable(artist).transfer(fee);    
         
-        solirey.admin().transfer(fee);
+        admin.transfer(fee);
         _escrowInfo[id].seller.transfer(payment);
         _escrowInfo[id].buyer.transfer(value);
     }

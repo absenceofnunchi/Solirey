@@ -1,4 +1,5 @@
 const escrow = artifacts.require("Escrow");
+const solirey = artifacts.require("Solirey");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
@@ -12,6 +13,7 @@ contract("Escrow", (accounts) => {
         commissionRate = 2
 
         contract = await escrow.deployed({ from: admin });
+        solireyContract = await solirey.deployed({ from: admin });
     });
 
     it("Create an escrow", async () => {
@@ -22,6 +24,7 @@ contract("Escrow", (accounts) => {
             assert.equal(error.reason, "Value has to be even")
         }
 
+        // Successfully create an escrow
         let result;
         try {
             result = await contract.createEscrow({ from: initialSeller, value: initialValue });
@@ -29,12 +32,12 @@ contract("Escrow", (accounts) => {
             console.log(error)
         }
 
-        id = result.logs[0].args["2"].toString()
+        id = result.logs[0].args["id"].toString()
 
         assert.isTrue(result.receipt.status, "The escrow creation transaction should succeed.")
         assert.equal(id, 1, "Incorrect unique ID.");
         
-        const escrowInfo = await getEscrowInfo(result.logs[0].args["2"].toString());
+        const escrowInfo = await getEscrowInfo(id);
         const value = escrowInfo["value"]
         const seller = escrowInfo["seller"]
         const buyer = escrowInfo["buyer"]
@@ -43,7 +46,7 @@ contract("Escrow", (accounts) => {
 
         tokenId = _tokenId
 
-        const artist = await contract._artist(tokenId)
+        const artist = await solireyContract._artist(tokenId)
 
         assert.equal(value, initialValue / 2, "Incorrect value.")
         assert.equal(seller, initialSeller, "Incorrect seller.")
@@ -98,12 +101,12 @@ contract("Escrow", (accounts) => {
             console.log(error)
         }
 
-        id = result.logs[0].args["2"].toString()
+        id = result.logs[0].args["id"].toString()
 
         assert.isTrue(result.receipt.status, "The escrow creation transaction should succeed.")
         assert.equal(id, 2, "Incorrect unique ID.");
         
-        const escrowInfo = await getEscrowInfo(result.logs[0].args["2"].toString());
+        const escrowInfo = await getEscrowInfo(result.logs[0].args["id"].toString());
         const value = escrowInfo["value"]
         const seller = escrowInfo["seller"]
         const buyer = escrowInfo["buyer"]
@@ -112,7 +115,7 @@ contract("Escrow", (accounts) => {
 
         tokenId = _tokenId
 
-        const artist = await contract._artist(tokenId)
+        const artist = await solireyContract._artist(tokenId)
 
         assert.equal(value, initialValue / 2, "Incorrect value.")
         assert.equal(seller, initialSeller, "Incorrect seller.")
@@ -135,7 +138,7 @@ contract("Escrow", (accounts) => {
         }
         const balanceAfter = await web3.eth.getBalance(initialBuyer)
 
-        const escrowInfo2 = await getEscrowInfo(result.logs[0].args["2"].toString());
+        const escrowInfo2 = await getEscrowInfo(result.logs[0].args["id"].toString());
         const newBuyer = escrowInfo2["buyer"]
         const newState = escrowInfo2["state"]
 
@@ -158,15 +161,15 @@ contract("Escrow", (accounts) => {
     })
 
     it("Transferred a token", async () => {
-        const initialOwner = await contract.ownerOf(tokenId)
+        const initialOwner = await solireyContract.ownerOf(tokenId)
 
         let result;
         try {
-            result = await contract.transferFrom(initialSeller, initialBuyer, tokenId, { from: initialSeller })
+            result = await solireyContract.transferFrom(initialSeller, initialBuyer, tokenId, { from: initialSeller })
         } catch (error) {
             console.log(error)
         }
-        const nextOwner = await contract.ownerOf(tokenId)
+        const nextOwner = await solireyContract.ownerOf(tokenId)
         
         assert.isTrue(result.receipt.status, "The token transfer transaction should succeed.")
         assert.equal(initialOwner, initialSeller, "The owner of the token should be the initial seller.")
@@ -181,7 +184,7 @@ contract("Escrow", (accounts) => {
             assert.equal(error.reason, "Unauthorized")
         }
 
-        const artist = await contract._artist(tokenId)
+        const artist = await solireyContract._artist(tokenId)
         const artistBalanceBefore = await web3.eth.getBalance(artist)
         const buyerBalanceBefore = await web3.eth.getBalance(initialBuyer)
 
