@@ -8,12 +8,10 @@ contract("During Auction", (accounts) => {
         admin = accounts[0];
         firstBuyer = accounts[1];
         secondBuyer = accounts[2];
-        contract = await auction.deployed({ from: admin });
         solireyContract = await solirey.deployed({ from: admin });
+        contract = await auction.deployed(solireyContract.address, { from: admin });
 
         initialSeller = accounts[3];
-        prelimId = "prelimId"
-        initialId = "id"
         initialBiddingTime = 100
         initialStartingBid = 100
         initialBid = web3.utils.toWei('1', 'ether')
@@ -94,15 +92,15 @@ contract("During Auction", (accounts) => {
 
         // Should fail because the ownership has been transferred to the auction contract when a new auction was created.
         try {
-            await contract.resell(initialBiddingTime, initialStartingBid, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'uint'], [initialBiddingTime, initialStartingBid]);
+            await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialSeller, contract.address, tokenId, resellData, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized")
+            assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
         }
     })
 
     it("Get the proper auction info using the public variable _auctionInfo", async () => {
         const auctionInfo = await contract._auctionInfo(initialId);
-
         const beneficiary = auctionInfo["beneficiary"]
         const auctionEndTime = auctionInfo["auctionEndTime"]
         const startingBid = auctionInfo["startingBid"]

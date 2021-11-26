@@ -160,19 +160,31 @@ contract("After Auction", (accounts) => {
 
         // Unsuccessfully attempt to resell by an unauthorized account
         try {
-            await contract.resell(initialBiddingTime, initialStartingBid, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'uint'], [initialBiddingTime, initialStartingBid]);
+            await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](firstBuyer, contract.address, tokenId, resellData, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized")
+            assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
         }
 
-        let resellResult;
         // Successfully resell
+        let resellResult;
         try {
-            resellResult = await contract.resell(initialBiddingTime, initialStartingBid, tokenId, { from: firstBuyer })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'uint'], [initialBiddingTime, initialStartingBid]);
+            resellResult = await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](firstBuyer, contract.address, tokenId, resellData, { from: firstBuyer })
+            const events = await contract.getPastEvents("AuctionCreated", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                if (event.event == "AuctionCreated") {
+                    if (event.returnValues.seller == firstBuyer) {
+                        if (firstBuyer == event.returnValues.seller) {
+                            initialId = event.returnValues.id
+                        }
+                    }
+                }
+            }
         } catch (error) {
             console.log(error)
         }
-        initialId = resellResult.logs[0].args["id"]
 
         const newAuctionInfo = await contract._auctionInfo(initialId)
         const beneficiary = newAuctionInfo["beneficiary"]

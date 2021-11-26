@@ -1,9 +1,10 @@
+const solirey = artifacts.require("Solirey");
 const simplePayment = artifacts.require("SimplePaymentTangible");
 const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
 contract("Simple Payment #2", (accounts) => {
-    let contract, admin, initialBuyer, initialSeller, initialValue, id, tokenId, commissionRate, secondBuyer;
+    let contract, solireyContract, admin, initialBuyer, initialSeller, initialValue, id, tokenId, commissionRate, secondBuyer;
     before(async () => {
         admin = accounts[0];
         initialSeller = accounts[1];
@@ -13,18 +14,28 @@ contract("Simple Payment #2", (accounts) => {
         commissionRate = 2;
 
         contract = await simplePayment.deployed({ from: admin });
+        solireyContract = await solirey.deployed({ from: admin });
     });
 
     it("Create simple payment", async () => {
+        // Fail to create payment
         try {
             await contract.createPayment(0, { from: initialSeller })
         } catch (error) {
             assert.equal(error.reason, "Wrong price")
         }
 
+        // Successfully create a payment instance
         let result;
         try {
             result = await contract.createPayment(initialValue, { from: initialSeller })
+            const events = await solireyContract.getPastEvents("Transfer", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                if (event.event == "Transfer") {
+                    tokenId = event.returnValues.tokenId
+                }
+            }
         } catch (error) {
             console.log(error)
         }
@@ -38,8 +49,7 @@ contract("Simple Payment #2", (accounts) => {
         const fetchedTokenId = simplePayment["tokenId"]
         const seller = simplePayment["seller"]
 
-        tokenId = result.logs[1].args["tokenId"].toString()
-        const owner = await contract.ownerOf(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
 
         assert.equal(owner, contract.address, "The owner of the current token ID should be identical to the initial seller.")
         assert.equal(payment.toString(), 0, "Payment should be zero.")
@@ -51,7 +61,8 @@ contract("Simple Payment #2", (accounts) => {
 
     it("Unsuccessfully attempt to resell" , async () => {
         try {
-            await contract.resell(initialValue, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [initialValue.toString(), initialBuyer]);
+            await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialSeller, contract.address, tokenId, resellData, { from: initialSeller })
         } catch (error) {
             assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
         }
@@ -99,7 +110,7 @@ contract("Simple Payment #2", (accounts) => {
         const expectedPayment = toBN(initialValue).sub(toBN(expectedFee))
 
         // const onSale = await contract._forSale(tokenId);
-        const owner = await contract.ownerOf(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
 
         // assert.isFalse(onSale, "The onSale for the current token ID should be false.")
         assert.equal(owner, initialBuyer, "The owner of the current token ID should be identical to the initial seller.")
@@ -182,29 +193,41 @@ contract("Simple Payment #2", (accounts) => {
     })
 
     it("Resell", async () => {
-        // Attempt to sell by an unauthorized account
+        // Unauthorized
         try {
-            result = await contract.resell(initialValue, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [0, initialBuyer]);
+            await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialBuyer, contract.address, tokenId, resellData, { from: initialSeller })
         } catch (error) {
             assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
         }
 
         // The pricing has to be greater than 0
         try {
-            result = await contract.resell(0, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [0, initialBuyer]);
+            await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialBuyer, contract.address, tokenId, resellData, { from: initialBuyer })
         } catch (error) {
             assert.equal(error.reason, "Wrong pricing")
         }
 
         let result;
         try {
-            result = await contract.resell(initialValue, tokenId, { from: initialBuyer })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [initialValue.toString(), initialBuyer]);
+            result = await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialBuyer, contract.address, tokenId, resellData, { from: initialBuyer })
+            const events = await contract.getPastEvents("CreatePayment", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                initialId = event.returnValues.id
+                if (event.event == "CreatePayment") {
+                    if (event.transactionHash == result.tx) {
+                        id = event.returnValues.id
+                    }
+                }
+            }
         } catch (error) {
             console.log(error)
         }
 
         tokenId = result.logs[1].args["tokenId"].toString()
-        id = result.logs[2].args["id"].toString()        
 
         const simplePayment = await contract._simplePayment(id)
         const payment = simplePayment["payment"]
@@ -213,8 +236,8 @@ contract("Simple Payment #2", (accounts) => {
         const fetchedTokenId = simplePayment["tokenId"]
         const seller = simplePayment["seller"]
 
-        const owner = await contract.ownerOf(tokenId)
-        const artist = await contract._artist(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
+        const artist = await solireyContract._artist(tokenId)
 
         assert.equal(owner, contract.address, "The owner of the current token ID should be identical to the initial seller.")
         assert.equal(payment.toString(), 0, "Payment should be zero.")
@@ -227,8 +250,15 @@ contract("Simple Payment #2", (accounts) => {
     it("Abort", async () => {
         try {
             let result = await contract.createPayment(initialValue, { from: secondBuyer })
+            const events = await solireyContract.getPastEvents("Transfer", {fromBlock: 0, toBlock: "latest"})
+            for (let i = 0; i < events.length; i++) {
+                const event = events[i]
+                if (event.event == "Transfer") {
+                    tokenId = event.returnValues.tokenId
+                }
+            }
+
             id = result.logs[0].args["id"].toString()
-            tokenId = result.logs[1].args["tokenId"].toString()
         } catch (error) {
             console.log(error)
         }
@@ -247,17 +277,17 @@ contract("Simple Payment #2", (accounts) => {
             console.log(error)
         }
 
-        const owner = await contract.ownerOf(tokenId)
+        const owner = await solireyContract.ownerOf(tokenId)
         assert.equal(owner, secondBuyer, "The token has been transferred to the wrong owner.")
 
-        try {
-            let result = await contract.resell(initialValue, tokenId, { from: secondBuyer })
-            // id = result.logs[1].args["id"].toString()
-        } catch (error) {
-            console.log(error)
-        }
+        // try {
+        //     let result = await contract.resell(initialValue, tokenId, { from: secondBuyer })
+        //     // id = result.logs[1].args["id"].toString()
+        // } catch (error) {
+        //     console.log(error)
+        // }
 
-        const newOwner = await contract.ownerOf(tokenId)
-        assert.equal(newOwner, contract.address, "The token has been transferred to the wrong owner.")
+        // const newOwner = await solireyContract.ownerOf(tokenId)
+        // assert.equal(newOwner, contract.address, "The token has been transferred to the wrong owner.")
     })
 })

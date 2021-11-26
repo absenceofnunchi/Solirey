@@ -38,12 +38,12 @@ contract Solirey is ERC721 {
     }
 
     // ERC720 token transfer
-    function tokenTransfer(address from, address to, uint256 tokenId) public {
-        // require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: transfer caller is not owner nor approved");
-        // require(tx.origin == ownerOf(tokenId) || isApprovedForAll(ownerOf(tokenId), msg.sender), "Not authorized");
-        require(tx.origin == ownerOf(tokenId));
-        _transfer(from, to, tokenId);
-    }
+    // function tokenTransfer(address from, address to, uint256 tokenId) public {
+    //     // require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: transfer caller is not owner nor approved");
+    //     // require(tx.origin == ownerOf(tokenId) || isApprovedForAll(ownerOf(tokenId), msg.sender), "Not authorized");
+    //     require(tx.origin == ownerOf(tokenId));
+    //     _transfer(from, to, tokenId);
+    // }
 
     function abortTransfer(address from, address to, uint256 tokenId) public {
         require(isApprovedForAll(ownerOf(tokenId), msg.sender), "Not authorized");

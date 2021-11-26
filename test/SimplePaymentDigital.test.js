@@ -4,7 +4,7 @@ const helper = require("./helpers/truffleTestHelper");
 const { toBN } = web3.utils;
 
 contract("Simple Payment #1", (accounts) => {
-    let contract, solireyContract, admin, initialBuyer, secondBuyer, initialSeller, initialValue, id, tokenId, commissionRate;
+    let contract, solireyContract, mintContract, admin, initialBuyer, secondBuyer, initialSeller, initialValue, id, tokenId, commissionRate;
     before(async () => {
         admin = accounts[0];
         initialSeller = accounts[1];
@@ -65,17 +65,9 @@ contract("Simple Payment #1", (accounts) => {
         try {
             await contract.withdraw(id, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized")
+            assert.equal(error.reason, "Not for sale")
         }
     })
-
-    // it("Unsuccessfully attempt to resell" , async () => {
-    //     try {
-    //         await contract.resell(initialValue, tokenId, { from: initialSeller })
-    //     } catch (error) {
-    //         assert.equal(error.reason, "ERC721: transfer of token that is not own")
-    //     }
-    // })
 
     it("Pay", async () => {
         // Unsuccessfully attempt to pay for an item that's not for sale
@@ -175,7 +167,7 @@ contract("Simple Payment #1", (accounts) => {
         try {
             await contract.withdraw(id, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized")
+            assert.equal(error.reason, "Not for sale")
         }
 
         const totalGasCost = await helper.getTotalGasCost(result)
@@ -217,47 +209,35 @@ contract("Simple Payment #1", (accounts) => {
 
     it("Resell", async () => {
         // Attempt to sell by an unauthorized account
-        // try {
-        //     await contract.resell(initialValue, tokenId, { from: initialSeller })
-        // } catch (error) {
-        //     console.log(error)
-        //     assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
-        // }
-
-        // The pricing has to be greater than 0
         try {
-            await contract.resell(0, tokenId, { from: initialSeller })
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [initialValue, initialBuyer]);
+            result = await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialBuyer, contract.address, tokenId, resellData, { from: initialSeller })
         } catch (error) {
-            assert.equal(error.reason, "Wrong pricing")
+            assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
         }
-
-        const owner1 = await solireyContract.ownerOf(tokenId)
 
         // Successfully resell
         let result;
         try {
-            result = await contract.resell(initialValue, tokenId, { from: initialBuyer })
-            const events = await solireyContract.getPastEvents("Transfer", {fromBlock: 0, toBlock: "latest"})
-            for (let i = 0; i < events.length; i++) {
-                const event = events[i]
-                if (event.event == "Transfer") {
-                    tokenId = event.returnValues.tokenId
-                }
+            const resellData = web3.eth.abi.encodeParameters(['uint', 'address'], [initialValue.toString(), initialBuyer]);
+            result = await solireyContract.methods['safeTransferFrom(address,address,uint256,bytes)'](initialBuyer, contract.address, tokenId, resellData, { from: initialBuyer })
+            const events = await contract.getPastEvents("CreatePayment", {fromBlock: 0, toBlock: "latest"})
+            const event = events[1]
+            if (event.event == "CreatePayment") {
+                id = event.returnValues.id
             }
+            // for (let i = 0; i < events.length; i++) {
+            //     const event = events[i]
+            //     if (event.event == "CreatePayment") {
+            //         console.log("event", event)
+            //         console.log("event.returnValues.id", event.returnValues.id)
+            //         id = event.returnValues.id
+            //     }
+            // }
         } catch (error) {
             console.log(error)
         }
 
-        // Attempt to resell multiple times
-        try {
-            await contract.resell(initialValue, tokenId, { from: initialBuyer })
-        } catch (error) {
-            console.log(error)
-            assert.equal(error.reason, "ERC721: transfer caller is not owner nor approved")
-        }
-
-        id = result.logs[0].args["id"].toString()        
-        console.log("id", id)
         const simplePayment = await contract._simplePayment(id)
         const payment = simplePayment["payment"]
         const price = simplePayment["price"]
@@ -268,10 +248,11 @@ contract("Simple Payment #1", (accounts) => {
         const owner = await solireyContract.ownerOf(tokenId)
         const artist = await solireyContract._artist(tokenId)
 
-        console.log("owner", owner)
-        console.log("contract.address", contract.address)
-        console.log("initialSeller", initialSeller)
-        console.log("initialBuyer", initialBuyer)
+        // console.log("owner", owner)
+        // console.log("initialBuyer", initialBuyer)
+        // console.log("initialSeller", initialSeller)
+        // console.log("contract.address", contract.address)
+        // console.log("seller", seller)
 
         assert.equal(owner, contract.address, "The owner of the current token ID should be identical to the initial seller.")
         assert.equal(payment.toString(), 0, "Payment should be zero.")
@@ -290,7 +271,7 @@ contract("Simple Payment #1", (accounts) => {
             assert.equal(error.reason, "Incorrect price")
         }
 
-        const artist = await contract._artist(tokenId)
+        const artist = await solireyContract._artist(tokenId)
         const balanceBeforeBuyer = await web3.eth.getBalance(secondBuyer)
         const balanceBeforeArtist = await web3.eth.getBalance(artist)
 
@@ -336,7 +317,7 @@ contract("Simple Payment #1", (accounts) => {
         assert.equal(artist, initialSeller, "The original artist should be the initial seller that listed the item.")
     })
 
-    it("Correctly attributes the original artist", async () => {
+    it("Correctly attribute the original artist", async () => {
         // Attempt to withdraw by an unauthorized account
         try {
             await contract.withdraw(id, { from: secondBuyer })
@@ -344,7 +325,7 @@ contract("Simple Payment #1", (accounts) => {
             assert.equal(error.reason, "Not authorized")
         }
     
-        const artist = await contract._artist(tokenId)
+        const artist = await solireyContract._artist(tokenId)
         const artistBalanceBefore = await web3.eth.getBalance(artist)
 
         // Successfully withdraw
@@ -358,7 +339,7 @@ contract("Simple Payment #1", (accounts) => {
         try {
             await contract.withdraw(id, { from: initialBuyer })
         } catch (error) {
-            assert.equal(error.reason, "Not authorized")
+            assert.equal(error.reason, "Not for sale")
         }
         
         // calculate the balance difference for the original artist
@@ -396,15 +377,15 @@ contract("Simple Payment #1", (accounts) => {
         const owner = await solireyContract.ownerOf(tokenId)
         assert.equal(owner, secondBuyer, "The token has been transferred to the wrong owner.")
 
-        try {
-            let result = await contract.resell(initialValue, tokenId, { from: secondBuyer })
-            // id = result.logs[1].args["id"].toString()
-        } catch (error) {
-            console.log(error)
-        }
+        // try {
+        //     let result = await contract.resell(initialValue, tokenId, { from: secondBuyer })
+        //     // id = result.logs[1].args["id"].toString()
+        // } catch (error) {
+        //     console.log(error)
+        // }
 
-        const newOwner = await solireyContract.ownerOf(tokenId)
-        assert.equal(newOwner, contract.address, "The token has been transferred to the wrong owner.")
+        // const newOwner = await solireyContract.ownerOf(tokenId)
+        // assert.equal(newOwner, contract.address, "The token has been transferred to the wrong owner.")
     })
 })
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Solirey.sol";
 
-contract Auction {
+contract Auction is IERC721Receiver {
     Solirey solirey;
 
     struct AuctionInfo {
@@ -53,27 +53,6 @@ contract Auction {
         _auctionInfo[uid].beneficiary = payable(msg.sender);
         _auctionInfo[uid].auctionEndTime = block.timestamp + _biddingTime;
         _auctionInfo[uid].startingBid = _startingBid;                        
-    }
-    
-    function resell(uint _biddingTime, uint _startingBid, uint256 tokenId) external {
-        require(
-            solirey.ownerOf(tokenId) == msg.sender,
-            "Not authorized"
-        );
-
-        solirey.incrementUid();
-        uint256 uid = solirey.currentUid();
-
-        emit AuctionCreated(uid, msg.sender);
-        
-        solirey.tokenTransfer(msg.sender, address(this), tokenId);
-        
-        AuctionInfo storage ai = _auctionInfo[uid];
-        ai.tokenId = tokenId;
-        ai.beneficiary = payable(msg.sender);
-        ai.auctionEndTime = block.timestamp + _biddingTime;
-        ai.highestBidder = address(0);
-        ai.startingBid = _startingBid;
     }
     
     function abort(uint id) external {
@@ -197,6 +176,29 @@ contract Auction {
     
     function getPendingReturn(uint id) external view returns (uint) {
         return _auctionInfo[id].pendingReturns[msg.sender];
+    }
+
+    function onERC721Received(address _from, address, uint256 _tokenId, bytes calldata _data) public virtual override returns (bytes4) {
+        // require(
+        //     solirey.ownerOf(_tokenId) == msg.sender,
+        //     "Not authorized"
+        // );
+
+        (uint _biddingTime, uint _startingBid) = abi.decode(_data, (uint, uint));  
+
+        solirey.incrementUid();
+        uint256 uid = solirey.currentUid();
+
+        emit AuctionCreated(uid, _from);
+                
+        AuctionInfo storage ai = _auctionInfo[uid];
+        ai.tokenId = _tokenId;
+        ai.beneficiary = payable(_from);
+        ai.auctionEndTime = block.timestamp + _biddingTime;
+        ai.highestBidder = address(0);
+        ai.startingBid = _startingBid;
+        
+        return this.onERC721Received.selector;
     }
 
     // for testing only 

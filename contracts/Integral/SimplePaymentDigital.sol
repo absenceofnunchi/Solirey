@@ -4,10 +4,7 @@ pragma solidity ^0.8.0;
 import "./ParentSimplePayment.sol";
 
 contract SimplePaymentDigital is ParentSimplePayment {
-    constructor(address solireyAddress) ParentSimplePayment(solireyAddress) {
-        require(msg.sender == solirey.admin());
-        solirey = Solirey(solireyAddress);
-    }
+    constructor(address solireyAddress) ParentSimplePayment(solireyAddress) {}
 
     function createPayment(uint price) external {
         require(price > 0, "Wrong price");
@@ -64,7 +61,7 @@ contract SimplePaymentDigital is ParentSimplePayment {
         Payment memory sp = _simplePayment[id];
 
         require(msg.sender == sp.seller, "Not authorized");
-        require(sp.payment != 0, "Not authorized");
+        require(sp.payment != 0, "Not for sale");
 
         _simplePayment[id].payment = 0;
         

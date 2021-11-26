@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./Solirey.sol";
 
-contract ParentSimplePayment {
+contract ParentSimplePayment is IERC721Receiver {
     Solirey solirey;
 
     struct Payment {
@@ -21,7 +21,7 @@ contract ParentSimplePayment {
     event PaymentMade(uint id);
 
     constructor(address solireyAddress) {
-        require(msg.sender == solirey.admin());
+        // require(msg.sender == solirey.admin());
         solirey = Solirey(solireyAddress);
     }
 
@@ -34,23 +34,6 @@ contract ParentSimplePayment {
         solirey.transferFrom(address(this), sp.seller, sp.tokenId);
     }
 
-    // function resell(uint price, uint256 tokenId) external {
-    //     require(
-    //         price > 0,
-    //         "Wrong pricing"
-    //     );
-
-    //     solirey.tokenTransfer(msg.sender, address(this), tokenId);
-
-    //     solirey.incrementUid();
-    //     uint256 uid = solirey.currentUid();
-    //     emit CreatePayment(uid);
-
-    //     _simplePayment[uid].price = price;
-    //     _simplePayment[uid].tokenId = tokenId;
-    //     _simplePayment[uid].seller = msg.sender;
-    // }
-
     function withdrawFee(uint id) external {
         require(
             solirey.admin() == msg.sender,
@@ -60,15 +43,13 @@ contract ParentSimplePayment {
         solirey.admin().transfer(_simplePayment[id].fee);
     }
 
-    function onERC721Received(address, address, uint256 _tokenId, bytes memory data) external virtual returns (bytes4) {
-        (uint _price) = abi.decode(data, (uint));   
-        
+    function onERC721Received(address, address, uint256 _tokenId, bytes memory _data) public virtual override returns (bytes4) {
+        (uint _price, address _seller) = abi.decode(_data, (uint, address));   
+
         require(
             _price > 0,
             "Wrong pricing"
         );
-
-        solirey.tokenTransfer(msg.sender, address(this), _tokenId);
 
         solirey.incrementUid();
         uint256 uid = solirey.currentUid();
@@ -76,9 +57,8 @@ contract ParentSimplePayment {
 
         _simplePayment[uid].price = _price;
         _simplePayment[uid].tokenId = _tokenId;
-        _simplePayment[uid].seller = msg.sender;
+        _simplePayment[uid].seller = _seller;
         
         return this.onERC721Received.selector;
     }
 }
-
