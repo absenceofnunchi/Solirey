@@ -58,6 +58,8 @@ contract Escrow {
 
         solirey.incrementUid();
         uint256 uid = solirey.currentUid();
+
+        emit CreateEscrow(uid);
         
         _escrowInfo[uid].value = msg.value / 2;
         require((2 * _escrowInfo[uid].value) == msg.value, "Value has to be even");
